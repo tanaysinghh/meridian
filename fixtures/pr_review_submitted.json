@@ -1,0 +1,14 @@
+{
+  "event": "pull_request_review",
+  "payload": {
+    "action": "submitted",
+    "sender": { "login": "priya-r" },
+    "repository": { "id": 900001, "full_name": "acme/platform-api", "default_branch": "main" },
+    "pull_request": { "number": 415 },
+    "review": {
+      "user": { "login": "priya-r" },
+      "state": "approved",
+      "body": "LGTM, migration plan looks solid."
+    }
+  }
+}

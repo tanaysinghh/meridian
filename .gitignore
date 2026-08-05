@@ -1,0 +1,17 @@
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+dist/
+build/
+.env
+.env.local
+secrets/
+outbox/
+.DS_Store
+*.log
+coverage/
+.vite/
+
+# ML model artifact — auto-trained on first uvicorn boot
+apps/ml/app/model.pkl

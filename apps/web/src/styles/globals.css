@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html, body, #root { height: 100%; }
+body {
+  background: #0f0c17;
+  color: #f4efe4;
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui;
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+* { border-radius: 0 !important; }
+
+::selection { background: #f5b54440; color: #ffffff; }
+
+/* Subtle violet grid on the obsidian */
+.grid-bg {
+  background-image:
+    linear-gradient(#241d33 1px, transparent 1px),
+    linear-gradient(90deg, #241d33 1px, transparent 1px);
+  background-size: 44px 44px;
+  background-position: -1px -1px;
+}
+
+/* Hairlines on light (cream) panels */
+.hairline   { box-shadow: inset 0 0 0 1px #d8cebb; }
+.hairline-b { box-shadow: inset 0 -1px 0 0 #d8cebb; }
+.hairline-t { box-shadow: inset 0 1px 0 0 #d8cebb; }
+.hairline-r { box-shadow: inset -1px 0 0 0 #d8cebb; }
+
+/* Hairlines on obsidian bg */
+.hairline-bg   { box-shadow: inset 0 0 0 1px #2a2135; }
+.hairline-bg-b { box-shadow: inset 0 -1px 0 0 #2a2135; }
+.hairline-bg-t { box-shadow: inset 0 1px 0 0 #2a2135; }
+.hairline-bg-r { box-shadow: inset -1px 0 0 0 #2a2135; }
+
+/* Scrollbar — warm violet on the dark, subtle on the cream */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #2a2135; }
+::-webkit-scrollbar-thumb:hover { background: #3d3049; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.mono  { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+.serif { font-family: 'Instrument Serif', Georgia, serif; }
+
+/* Skeleton shimmer — cream on cream, violet on obsidian */
+.skeleton {
+  background: linear-gradient(90deg, #ede4d2 0%, #f8f4ec 40%, #ede4d2 80%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.skeleton-dark {
+  background: linear-gradient(90deg, #17131f 0%, #221a30 40%, #17131f 80%);
+  background-size: 800px 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Card lift transition */
+.card-lift {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 180ms ease;
+}
+.card-lift:hover { transform: translateY(-2px); }
+
+/* Row hover: amber accent stripe on the left */
+.row-hover { position: relative; transition: background-color 140ms ease; }
+.row-hover::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: transparent;
+  transition: background-color 140ms ease;
+}
+.row-hover:hover::before { background: #f5b544; }
+
+/* Hero radial wash — amber / coral / rose on obsidian */
+.hero-wash {
+  background:
+    radial-gradient(1000px 500px at 20% 10%, rgba(245, 181, 68, 0.22), transparent 60%),
+    radial-gradient(800px 400px at 85% 30%, rgba(217, 46, 88, 0.16), transparent 65%),
+    radial-gradient(600px 300px at 60% 80%, rgba(255, 138, 90, 0.10), transparent 70%);
+}
+
+/* Noise overlay for depth */
+.noise::after {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.18 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  opacity: 0.35;
+  mix-blend-mode: overlay;
+}
+
+/* Focus ring — accent amber */
+:focus-visible {
+  outline: 2px solid #f5b544;
+  outline-offset: 2px;
+}
+
+/* Glass card over the obsidian bg — warm-tinted */
+.glass {
+  background: rgba(34, 26, 48, 0.55);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  box-shadow: inset 0 0 0 1px rgba(245, 181, 68, 0.10),
+              0 20px 40px -20px rgba(0, 0, 0, 0.65);
+}

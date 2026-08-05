@@ -1,0 +1,25 @@
+{
+  "event": "pull_request",
+  "payload": {
+    "action": "opened",
+    "sender": { "login": "sofia-a" },
+    "repository": { "id": 900002, "full_name": "acme/web-app", "default_branch": "main" },
+    "pull_request": {
+      "id": 200501, "number": 1210,
+      "title": "docs: fix typo in onboarding copy",
+      "body": "",
+      "state": "open", "draft": false,
+      "created_at": "2026-08-05T10:15:00Z",
+      "updated_at": "2026-08-05T10:15:00Z",
+      "merged_at": null, "closed_at": null, "merged": false,
+      "html_url": "https://github.com/acme/web-app/pull/1210",
+      "user": { "login": "sofia-a", "avatar_url": "https://api.dicebear.com/9.x/identicon/svg?seed=sofia-a" },
+      "base": { "ref": "main" }, "head": { "ref": "docs/onboarding-typo" },
+      "additions": 2, "deletions": 2, "changed_files": 1, "commits": 1,
+      "file_paths": ["src/pages/onboarding.tsx"],
+      "labels": [{"name":"docs"}],
+      "requested_reviewers": [{"login":"kenji-w"}],
+      "commits_details": [{"message":"docs: fix onboarding typo"}]
+    }
+  }
+}
