@@ -1,5 +1,6 @@
 import { query } from '../db/pool.js';
 import { sendEmail } from '../integrations/email.js';
+import { logger } from '../utils/logger.js';
 
 // Weekly digest: high-risk activity + review load + revert rate.
 export async function buildDigest(orgId) {
@@ -44,7 +45,7 @@ export async function sendWeeklyDigest(orgId) {
     `SELECT digest_recipients FROM org_settings WHERE org_id=$1`, [orgId]);
   const recipients = rows[0]?.digest_recipients || [];
   if (!recipients.length) {
-    console.log('[digest] no recipients configured for org', orgId);
+    logger.info({ orgId }, 'digest_skipped_no_recipients');
     return;
   }
   const { html, subject } = await buildDigest(orgId);

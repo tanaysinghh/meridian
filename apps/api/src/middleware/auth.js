@@ -1,22 +1,25 @@
 import jwt from 'jsonwebtoken';
 import { httpError } from './error.js';
 import { query } from '../db/pool.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+import { config } from '../utils/env.js';
 
 export function signAccess(user) {
   return jwt.sign(
     { sub: user.id, org: user.org_id, role: user.role },
-    JWT_SECRET,
-    { expiresIn: process.env.JWT_ACCESS_TTL || '15m' }
+    config.jwtSecret,
+    { expiresIn: config.jwtAccessTtl, issuer: 'meridian', audience: 'meridian-web' }
   );
+}
+
+export function verifyAccess(token) {
+  return jwt.verify(token, config.jwtSecret, { issuer: 'meridian', audience: 'meridian-web' });
 }
 
 export async function requireAuth(req, _res, next) {
   try {
     const token = req.cookies?.mrd_at || (req.headers.authorization || '').replace('Bearer ', '');
     if (!token) throw httpError(401, 'unauthenticated');
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = verifyAccess(token);
     const { rows } = await query(
       'SELECT id, org_id, email, name, role, github_login, avatar_url FROM users WHERE id = $1',
       [decoded.sub]

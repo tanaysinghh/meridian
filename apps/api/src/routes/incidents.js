@@ -1,9 +1,23 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { query } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
+import { httpError } from '../middleware/error.js';
+import { validate } from '../utils/validate.js';
 
 export const incidentRoutes = Router();
 incidentRoutes.use(requireAuth);
+
+const uuid = z.string().uuid();
+
+const createSchema = z.object({
+  title: z.string().min(1).max(500),
+  severity: z.enum(['sev1', 'sev2', 'sev3', 'sev4']),
+  description: z.string().max(10_000).optional().default(''),
+  related_pr_id: uuid.nullable().optional().default(null),
+  repo_id: uuid.nullable().optional().default(null),
+  occurred_at: z.string().datetime().nullable().optional().default(null)
+});
 
 incidentRoutes.get('/', async (req, res, next) => {
   try {
@@ -20,15 +34,25 @@ incidentRoutes.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-incidentRoutes.post('/', async (req, res, next) => {
+incidentRoutes.post('/', validate({ body: createSchema }), async (req, res, next) => {
   try {
-    const { title, severity, description, related_pr_id = null, repo_id = null, occurred_at } = req.body || {};
+    const { title, severity, description, related_pr_id, repo_id, occurred_at } = req.body;
+    // Scope: linked PR/repo must belong to the caller's org.
+    if (related_pr_id) {
+      const owned = await query(
+        `SELECT 1 FROM pull_requests p JOIN repos r ON r.id=p.repo_id
+          WHERE p.id=$1 AND r.org_id=$2`, [related_pr_id, req.user.org_id]);
+      if (!owned.rows[0]) throw httpError(400, 'invalid_related_pr');
+    }
+    if (repo_id) {
+      const owned = await query('SELECT 1 FROM repos WHERE id=$1 AND org_id=$2', [repo_id, req.user.org_id]);
+      if (!owned.rows[0]) throw httpError(400, 'invalid_repo');
+    }
     const { rows } = await query(
       `INSERT INTO incidents (org_id, repo_id, related_pr_id, title, severity, description, reported_by, occurred_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7, COALESCE($8, now())) RETURNING id`,
       [req.user.org_id, repo_id, related_pr_id, title, severity, description, req.user.id, occurred_at]);
 
-    // Automatically mark the PR outcome as incident-causing (closes the feedback loop)
     if (related_pr_id) {
       await query(
         `INSERT INTO pr_outcomes (pr_id, caused_incident, outcome_notes)

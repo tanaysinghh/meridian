@@ -7,8 +7,8 @@ export default function Login() {
   const nav = useNavigate();
   const loc = useLocation();
   const { login } = useAuth();
-  const [email, setEmail] = useState('demo@meridian.dev');
-  const [password, setPassword] = useState('demo1234');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -18,9 +18,32 @@ export default function Login() {
     try {
       await login(email, password);
       nav(loc.state?.from || '/app');
-    } catch (e) {
+    } catch {
       setErr('Invalid email or password.');
     } finally { setBusy(false); }
+  };
+
+  // The GitHub button hits the API. If OAuth isn't configured the API returns
+  // 503 with a JSON body; probe for that and show an inline hint rather than
+  // silently doing nothing.
+  const [ghHint, setGhHint] = useState(null);
+  const startGitHub = async e => {
+    e.preventDefault();
+    setGhHint(null);
+    try {
+      const res = await fetch('/api/auth/github', { credentials: 'include', redirect: 'manual' });
+      if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+        window.location.href = '/api/auth/github';
+        return;
+      }
+      if (res.status === 503) {
+        setGhHint('GitHub sign-in isn’t configured on this server yet.');
+        return;
+      }
+      window.location.href = '/api/auth/github';
+    } catch {
+      setGhHint('GitHub sign-in is unavailable right now.');
+    }
   };
 
   return (
@@ -41,12 +64,13 @@ export default function Login() {
         <div className="w-full max-w-sm">
           <div className="mb-8 md:hidden"><Logo /></div>
           <h1 className="text-2xl text-ink font-medium">Sign in</h1>
-          <p className="text-ink2 mt-1 text-sm">Use the seeded demo account or continue with GitHub.</p>
+          <p className="text-ink2 mt-1 text-sm">Continue with GitHub or your work email.</p>
 
-          <a href="/api/auth/github"
+          <button onClick={startGitHub}
             className="mt-8 w-full hairline bg-white px-4 py-2.5 text-sm text-ink flex items-center justify-center gap-2 hover:bg-panel2">
-            <GhIcon /> Continue with GitHub (dev)
-          </a>
+            <GhIcon /> Continue with GitHub
+          </button>
+          {ghHint && <div className="mt-2 text-xs text-ink3">{ghHint}</div>}
 
           <div className="my-6 flex items-center gap-4 text-xs text-ink3">
             <div className="flex-1 h-px bg-line" />OR<div className="flex-1 h-px bg-line" />
@@ -54,11 +78,13 @@ export default function Login() {
 
           <form onSubmit={submit} className="space-y-3">
             <Field label="Email">
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              <input type="email" autoComplete="email" required
+                value={email} onChange={e => setEmail(e.target.value)}
                 className="w-full bg-white hairline px-3 py-2 text-ink outline-none focus:shadow-panel" />
             </Field>
             <Field label="Password">
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              <input type="password" autoComplete="current-password" required
+                value={password} onChange={e => setPassword(e.target.value)}
                 className="w-full bg-white hairline px-3 py-2 text-ink outline-none" />
             </Field>
             {err && <div className="text-tier-critical text-sm">{err}</div>}

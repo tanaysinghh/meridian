@@ -1,9 +1,16 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { query } from '../db/pool.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { validate } from '../utils/validate.js';
 
 export const repoRoutes = Router();
 repoRoutes.use(requireAuth);
+
+const uuid = z.string().uuid();
+const patchSchema = z.object({
+  risk_threshold: z.number().min(0).max(1)
+});
 
 repoRoutes.get('/', async (req, res, next) => {
   try {
@@ -25,13 +32,14 @@ repoRoutes.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-repoRoutes.patch('/:id', requireRole('admin','team_lead'), async (req, res, next) => {
-  try {
-    const { risk_threshold } = req.body || {};
-    await query(
-      `UPDATE repos SET risk_threshold = $1
-        WHERE id = $2 AND org_id = $3`,
-      [risk_threshold, req.params.id, req.user.org_id]);
-    res.json({ ok: true });
-  } catch (err) { next(err); }
-});
+repoRoutes.patch('/:id', requireRole('admin', 'team_lead'),
+  validate({ params: z.object({ id: uuid }), body: patchSchema }),
+  async (req, res, next) => {
+    try {
+      await query(
+        `UPDATE repos SET risk_threshold = $1
+          WHERE id = $2 AND org_id = $3`,
+        [req.body.risk_threshold, req.params.id, req.user.org_id]);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });

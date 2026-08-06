@@ -1,12 +1,12 @@
 import { request } from 'undici';
+import { config } from '../utils/env.js';
+import { logger } from '../utils/logger.js';
 
-const ML_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
-
-// If the ML service is unreachable, we degrade to a rule-only score so
-// webhook ingestion doesn't stall on ML being down.
+// If the ML service is unreachable, degrade to a rule-only score so webhook
+// ingestion doesn't stall on ML being down.
 export async function scorePR(features) {
   try {
-    const { statusCode, body } = await request(`${ML_URL}/score`, {
+    const { statusCode, body } = await request(`${config.mlServiceUrl}/score`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ features }),
@@ -15,7 +15,7 @@ export async function scorePR(features) {
     if (statusCode >= 400) throw new Error(`ml_${statusCode}`);
     return await body.json();
   } catch (err) {
-    console.warn('[ml] fallback scoring:', err.message);
+    logger.warn({ err: err.message }, 'ml_fallback_scoring');
     return fallbackScore(features);
   }
 }

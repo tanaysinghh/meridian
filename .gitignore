@@ -1,17 +1,35 @@
 node_modules/
 .venv/
+venv/
 __pycache__/
 *.pyc
 dist/
 build/
+
+# All env files except the checked-in templates.
 .env
-.env.local
+.env.*
+!.env.example
+!.env.*.example
+
+# Any secrets/keys — never commit these.
 secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Local outputs
 outbox/
-.DS_Store
 *.log
 coverage/
 .vite/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
 
 # ML model artifact — auto-trained on first uvicorn boot
 apps/ml/app/model.pkl

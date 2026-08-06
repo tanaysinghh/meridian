@@ -115,9 +115,6 @@ function Hero() {
               Sign in with email →
             </Link>
           </motion.div>
-          <motion.div variants={fadeUp} className="mt-4 text-xs text-onbg3 mono">
-            GitHub app isn't provisioned yet — the button drops you into a fully-seeded demo org.
-          </motion.div>
         </motion.div>
 
         {/* Live PR ticker — the "product proof" */}
@@ -187,7 +184,7 @@ function LivePRTicker() {
             style={{ boxShadow: '0 0 8px #6ad9b0' }} />
           Live · risk scored PRs
         </div>
-        <div className="text-[10px] mono text-onbg3">demo stream</div>
+        <div className="text-[10px] mono text-onbg3">preview</div>
       </div>
       <ul className="space-y-1.5">
         {items.map((pr, i) => (

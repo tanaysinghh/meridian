@@ -1,11 +1,19 @@
 import pg from 'pg';
-import 'dotenv/config';
+import { config } from '../utils/env.js';
+import { logger } from '../utils/logger.js';
 
 const { Pool } = pg;
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 10
+  connectionString: config.databaseUrl,
+  max: config.dbPoolMax,
+  idleTimeoutMillis: config.dbPoolIdleMs,
+  connectionTimeoutMillis: 10_000,
+  ssl: config.databaseSsl ? { rejectUnauthorized: false } : false
+});
+
+pool.on('error', err => {
+  logger.error({ err: { message: err.message, stack: err.stack } }, 'pg_pool_error');
 });
 
 export async function query(text, params) {
@@ -25,4 +33,9 @@ export async function tx(fn) {
   } finally {
     client.release();
   }
+}
+
+export async function healthCheck() {
+  const { rows } = await pool.query('SELECT 1 AS ok');
+  return rows[0]?.ok === 1;
 }

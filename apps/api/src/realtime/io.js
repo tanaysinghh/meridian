@@ -1,8 +1,8 @@
+import { verifyAccess } from '../middleware/auth.js';
+import { logger } from '../utils/logger.js';
+
 // Socket.IO namespace. Clients join their org room after auth handshake.
 // The dashboard subscribes to receive live PR updates as webhooks land.
-
-import jwt from 'jsonwebtoken';
-
 let ioRef = null;
 
 export function attachIO(io) {
@@ -11,7 +11,6 @@ export function attachIO(io) {
 
   live.use((socket, next) => {
     try {
-      // token can be passed via auth handshake payload or cookie header
       const token =
         socket.handshake.auth?.token ||
         (socket.handshake.headers?.cookie || '')
@@ -19,11 +18,12 @@ export function attachIO(io) {
           .find(c => c.startsWith('mrd_at='))
           ?.slice('mrd_at='.length);
       if (!token) return next(new Error('unauth'));
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+      const decoded = verifyAccess(token);
       socket.data.userId = decoded.sub;
       socket.data.orgId = decoded.org;
       next();
-    } catch {
+    } catch (err) {
+      logger.debug({ err: err.message }, 'socket_auth_failed');
       next(new Error('unauth'));
     }
   });

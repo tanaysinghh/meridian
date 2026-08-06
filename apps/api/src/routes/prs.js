@@ -1,22 +1,32 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { query } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { httpError } from '../middleware/error.js';
+import { validate } from '../utils/validate.js';
 
 export const prRoutes = Router();
 prRoutes.use(requireAuth);
 
-// GET /prs?state=open&repo=acme/platform-api&tier=high&author=x&limit=50
-prRoutes.get('/', async (req, res, next) => {
+const uuid = z.string().uuid();
+const listQuery = z.object({
+  state: z.enum(['open', 'closed', 'merged']).optional(),
+  repo: z.string().max(200).optional(),
+  tier: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  author: z.string().max(200).optional(),
+  limit: z.coerce.number().int().positive().max(500).default(100)
+});
+
+prRoutes.get('/', validate({ query: listQuery }), async (req, res, next) => {
   try {
-    const { state, repo, tier, author, limit = 100 } = req.query;
+    const { state, repo, tier, author, limit } = req.query;
     const params = [req.user.org_id];
     const where = ['r.org_id = $1'];
     if (state) { params.push(state); where.push(`p.state = $${params.length}`); }
     if (repo) { params.push(repo); where.push(`r.full_name = $${params.length}`); }
     if (author) { params.push(author); where.push(`p.author_login = $${params.length}`); }
     if (tier) { params.push(tier); where.push(`s.tier = $${params.length}`); }
-    params.push(Math.min(Number(limit) || 100, 500));
+    params.push(limit);
 
     const { rows } = await query(
       `SELECT p.id, p.number, p.title, p.author_login, p.author_avatar, p.state,
@@ -34,13 +44,12 @@ prRoutes.get('/', async (req, res, next) => {
         WHERE ${where.join(' AND ')}
         ORDER BY p.updated_at DESC
         LIMIT $${params.length}`,
-      params
-    );
+      params);
     res.json({ items: rows });
   } catch (err) { next(err); }
 });
 
-prRoutes.get('/:id', async (req, res, next) => {
+prRoutes.get('/:id', validate({ params: z.object({ id: uuid }) }), async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT p.*, r.full_name AS repo_full_name,
@@ -55,8 +64,7 @@ prRoutes.get('/:id', async (req, res, next) => {
          ) s ON true
          LEFT JOIN pr_outcomes o ON o.pr_id = p.id
         WHERE p.id = $1 AND r.org_id = $2`,
-      [req.params.id, req.user.org_id]
-    );
+      [req.params.id, req.user.org_id]);
     if (!rows[0]) throw httpError(404, 'not_found');
     const events = await query(
       `SELECT event_type, actor_login, occurred_at, payload
@@ -66,19 +74,32 @@ prRoutes.get('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// mark outcome (for the Incidents / feedback loop tab)
-prRoutes.post('/:id/outcome', async (req, res, next) => {
-  try {
-    const { reverted = false, hotfixed = false, caused_incident = false, notes = null } = req.body || {};
-    await query(
-      `INSERT INTO pr_outcomes (pr_id, reverted, hotfixed, caused_incident, outcome_notes)
-       VALUES ($1,$2,$3,$4,$5)
-       ON CONFLICT (pr_id) DO UPDATE SET
-         reverted=EXCLUDED.reverted, hotfixed=EXCLUDED.hotfixed,
-         caused_incident=EXCLUDED.caused_incident, outcome_notes=EXCLUDED.outcome_notes,
-         observed_at = now()`,
-      [req.params.id, reverted, hotfixed, caused_incident, notes]
-    );
-    res.json({ ok: true });
-  } catch (err) { next(err); }
+const outcomeSchema = z.object({
+  reverted: z.boolean().optional().default(false),
+  hotfixed: z.boolean().optional().default(false),
+  caused_incident: z.boolean().optional().default(false),
+  notes: z.string().max(4000).nullable().optional().default(null)
 });
+
+prRoutes.post('/:id/outcome',
+  validate({ params: z.object({ id: uuid }), body: outcomeSchema }),
+  async (req, res, next) => {
+    try {
+      const { reverted, hotfixed, caused_incident, notes } = req.body;
+      // Scope check: ensure this PR belongs to the caller's org before writing.
+      const owned = await query(
+        `SELECT 1 FROM pull_requests p JOIN repos r ON r.id=p.repo_id
+          WHERE p.id=$1 AND r.org_id=$2`,
+        [req.params.id, req.user.org_id]);
+      if (!owned.rows[0]) throw httpError(404, 'not_found');
+      await query(
+        `INSERT INTO pr_outcomes (pr_id, reverted, hotfixed, caused_incident, outcome_notes)
+         VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (pr_id) DO UPDATE SET
+           reverted=EXCLUDED.reverted, hotfixed=EXCLUDED.hotfixed,
+           caused_incident=EXCLUDED.caused_incident, outcome_notes=EXCLUDED.outcome_notes,
+           observed_at = now()`,
+        [req.params.id, reverted, hotfixed, caused_incident, notes]);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });

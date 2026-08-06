@@ -1,22 +1,27 @@
 import { request } from 'undici';
+import { config } from '../utils/env.js';
+import { logger } from '../utils/logger.js';
 
-// Slack notifier. If SLACK_WEBHOOK_URL is not set, logs instead of sending —
-// this lets the whole pipeline be exercised in local dev.
+// Slack notifier. If no webhook URL is configured (org- or env-level), skips
+// delivery and logs a structured record — in production this means Slack
+// alerting is off; in dev it lets the pipeline exercise end-to-end without a
+// real webhook.
 export async function notifySlack({ orgSlackUrl, text, blocks }) {
-  const url = orgSlackUrl || process.env.SLACK_WEBHOOK_URL;
+  const url = orgSlackUrl || config.slack.webhookUrl;
   if (!url) {
-    console.log('[slack:dry-run]', text);
+    logger.debug({ text }, 'slack_skipped_no_webhook');
     return { delivered: false, reason: 'no_webhook_configured' };
   }
   try {
     await request(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text, blocks })
+      body: JSON.stringify({ text, blocks }),
+      bodyTimeout: 10_000
     });
     return { delivered: true };
   } catch (err) {
-    console.warn('[slack] delivery failed:', err.message);
+    logger.warn({ err: { message: err.message } }, 'slack_delivery_failed');
     return { delivered: false, reason: err.message };
   }
 }

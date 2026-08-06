@@ -1,12 +1,13 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { query } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { suggestReviewers } from '../services/reviewerSuggest.js';
+import { validate } from '../utils/validate.js';
 
 export const reviewerRoutes = Router();
 reviewerRoutes.use(requireAuth);
 
-// Reviewer load view — current open review queue per reviewer.
 reviewerRoutes.get('/', async (req, res, next) => {
   try {
     const { rows: users } = await query(
@@ -14,7 +15,6 @@ reviewerRoutes.get('/', async (req, res, next) => {
          FROM users WHERE org_id = $1 AND github_login IS NOT NULL`,
       [req.user.org_id]);
 
-    // count of open PRs where each user is a requested reviewer
     const { rows: loads } = await query(
       `SELECT unnest(p.requested_reviewers) AS login, COUNT(*)::int AS open_reviews,
               AVG(s.score)::float AS avg_risk
@@ -31,22 +31,18 @@ reviewerRoutes.get('/', async (req, res, next) => {
     const loadMap = new Map(loads.map(l => [l.login, l]));
     const rows = users.map(u => {
       const l = loadMap.get(u.github_login);
-      return {
-        ...u,
-        open_reviews: l?.open_reviews ?? 0,
-        avg_risk: l?.avg_risk ?? 0
-      };
+      return { ...u, open_reviews: l?.open_reviews ?? 0, avg_risk: l?.avg_risk ?? 0 };
     }).sort((a, b) => b.open_reviews - a.open_reviews);
 
     res.json({ items: rows });
   } catch (err) { next(err); }
 });
 
-// Suggest reviewers for a PR (used from PR detail view)
-reviewerRoutes.get('/suggest', async (req, res, next) => {
-  try {
-    const { pr_id } = req.query;
-    const suggestions = await suggestReviewers({ orgId: req.user.org_id, prId: pr_id });
-    res.json({ suggestions });
-  } catch (err) { next(err); }
-});
+reviewerRoutes.get('/suggest',
+  validate({ query: z.object({ pr_id: z.string().uuid() }) }),
+  async (req, res, next) => {
+    try {
+      const suggestions = await suggestReviewers({ orgId: req.user.org_id, prId: req.query.pr_id });
+      res.json({ suggestions });
+    } catch (err) { next(err); }
+  });

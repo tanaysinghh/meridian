@@ -5,18 +5,30 @@ import { scorePR } from '../services/mlClient.js';
 import { evaluateRules } from '../rules/evaluate.js';
 import { emitToOrg } from '../realtime/io.js';
 import { notifySlack, riskPRBlock } from '../integrations/slack.js';
+import { config } from '../utils/env.js';
+import { logger } from '../utils/logger.js';
 
 export const webhookRoutes = Router();
 
+// Verify GitHub's HMAC signature over the raw body. In production a missing
+// secret is a config error and the process refuses to start. In development,
+// only an explicit ALLOW_UNSIGNED_WEBHOOKS=true bypasses verification —
+// used by the fixture replay script for local testing.
 function verifySignature(req) {
-  const secret = process.env.GITHUB_WEBHOOK_SECRET;
-  // TODO(external): once secret is provisioned, remove this dev bypass
-  if (!secret) return true;
+  const secret = config.github.webhookSecret;
+  if (!secret) {
+    if (config.github.allowUnsignedWebhooks) return true;
+    logger.warn('webhook rejected: no GITHUB_WEBHOOK_SECRET configured');
+    return false;
+  }
   const sig = req.headers['x-hub-signature-256'];
-  if (!sig) return false;
+  if (!sig || typeof sig !== 'string') return false;
   const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(req.body).digest('hex');
+  const sigBuf = Buffer.from(sig);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length) return false;
   try {
-    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+    return crypto.timingSafeEqual(sigBuf, expBuf);
   } catch { return false; }
 }
 
@@ -195,7 +207,8 @@ webhookRoutes.post('/', async (req, res, next) => {
       emitToOrg(orgId, 'pr.updated', { pr_id: prFull.id, action });
       if (['opened','synchronize','reopened','edited','ready_for_review'].includes(action)) {
         // fire-and-forget scoring; response is fast
-        scoreAndPersist({ orgId, repoRow, prFull }).catch(e => console.error('[score] failed', e));
+        scoreAndPersist({ orgId, repoRow, prFull }).catch(e =>
+          logger.error({ err: { message: e.message, stack: e.stack } }, 'score_failed'));
       }
       return res.json({ ok: true });
     }
@@ -228,7 +241,7 @@ webhookRoutes.post('/', async (req, res, next) => {
     }
 
     // fallthrough — accept but log
-    console.log('[webhook] unhandled event', event, action);
+    logger.debug({ event, action }, 'webhook_unhandled_event');
     res.json({ ok: true, ignored: true });
   } catch (err) { next(err); }
 });
