@@ -1,30 +1,30 @@
 import clsx from 'clsx';
 
-// Tier pill tints — text/bg calibrated for the warm ivory panel bg (#f8f4ec)
-// AA-contrast checked. Dot color = the "true" tier hue with a soft glow.
+// Tier pill tints — dark-panel variant. Text sits AA-legible on the tinted
+// bg; dot uses the "true" tier hue with a soft glow.
 const STYLES = {
   low: {
-    text: '#0d5f45',
-    bg:   '#daf1e5',
-    dot:  '#2fa77e',
+    text: '#6ee7b7',
+    bg:   'rgba(16, 185, 129, 0.14)',
+    dot:  '#10b981',
     glow: 'shadow-glow-low'
   },
   medium: {
-    text: '#7a4d0a',
-    bg:   '#fbe7c8',
-    dot:  '#e88b1a',
+    text: '#fcd34d',
+    bg:   'rgba(234, 179, 8, 0.14)',
+    dot:  '#eab308',
     glow: 'shadow-glow-medium'
   },
   high: {
-    text: '#7a2818',
-    bg:   '#fbd7c9',
-    dot:  '#e6552a',
+    text: '#fdba74',
+    bg:   'rgba(249, 115, 22, 0.14)',
+    dot:  '#f97316',
     glow: 'shadow-glow-high'
   },
   critical: {
-    text: '#7a1230',
-    bg:   '#fbd0dc',
-    dot:  '#d92e58',
+    text: '#fca5a5',
+    bg:   'rgba(239, 68, 68, 0.14)',
+    dot:  '#ef4444',
     glow: 'shadow-glow-critical'
   }
 };
@@ -47,7 +47,7 @@ export default function TierPill({ tier, score, variant = 'solid', size = 'sm', 
     >
       <span
         className={clsx('w-1.5 h-1.5 shrink-0', pulse && 'animate-pulseGlow')}
-        style={{ background: s.dot, boxShadow: `0 0 8px ${s.dot}90` }}
+        style={{ background: s.dot, boxShadow: `0 0 6px ${s.dot}80` }}
       />
       {tier}
       {score != null && (

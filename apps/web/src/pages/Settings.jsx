@@ -45,7 +45,7 @@ export default function Settings() {
           whileHover={{ y: -1 }}
           whileTap={{ scale: 0.97 }}
           onClick={save}
-          className="bg-grad-accent text-white px-4 py-1.5 text-xs font-medium shadow-accent-glow">
+          className="bg-accent hover:bg-accent2 text-white px-4 py-1.5 text-xs font-medium transition-colors">
           Save changes
         </motion.button>
       )}>
@@ -58,7 +58,7 @@ export default function Settings() {
                 <input value={s.slack_webhook_url || ''}
                   onChange={e => patch({ slack_webhook_url: e.target.value })}
                   placeholder="https://hooks.slack.com/services/..."
-                  className="w-full bg-white hairline px-2 py-1.5 text-sm text-ink outline-none mono focus:shadow-accent-glow transition-shadow" />
+                  className="w-full bg-bg hairline px-2 py-1.5 text-sm text-ink outline-none mono focus:shadow-accent-glow transition-shadow" />
               </Field>
               <Field label="Digest recipients"
                 help="Comma-separated email addresses that receive the weekly digest.">
@@ -66,7 +66,7 @@ export default function Settings() {
                   onChange={e => patch({
                     digest_recipients: e.target.value.split(',').map(v => v.trim()).filter(Boolean)
                   })}
-                  className="w-full bg-white hairline px-2 py-1.5 text-sm text-ink outline-none mono focus:shadow-accent-glow transition-shadow" />
+                  className="w-full bg-bg hairline px-2 py-1.5 text-sm text-ink outline-none mono focus:shadow-accent-glow transition-shadow" />
               </Field>
               <Field label="Notify on tiers"
                 help="Which tiers trigger a Slack notification when scored.">
@@ -96,7 +96,7 @@ export default function Settings() {
                 <input type="number" min={1} max={168}
                   value={s.high_risk_sla_hours ?? 8}
                   onChange={e => patch({ high_risk_sla_hours: Number(e.target.value) })}
-                  className="w-32 bg-white hairline px-2 py-1.5 text-sm text-ink outline-none mono focus:shadow-accent-glow transition-shadow" />
+                  className="w-32 bg-bg hairline px-2 py-1.5 text-sm text-ink outline-none mono focus:shadow-accent-glow transition-shadow" />
               </Field>
               <Field label="Auto-escalate">
                 <label className="flex items-center gap-2 text-sm text-ink2 cursor-pointer">
@@ -163,8 +163,8 @@ function StatusRow({ ok, label, hint }) {
       <span
         className={`w-2 h-2 shrink-0 mt-1.5 ${ok ? 'bg-tier-low' : 'bg-tier-medium'}`}
         style={ok
-          ? { boxShadow: '0 0 8px #2fa77e60' }
-          : { boxShadow: '0 0 8px #e88b1a60' }} />
+          ? { boxShadow: '0 0 8px rgba(16,185,129,0.6)' }
+          : { boxShadow: '0 0 8px rgba(234,179,8,0.6)' }} />
       <div className="flex-1">
         <div className="text-ink">
           {label}

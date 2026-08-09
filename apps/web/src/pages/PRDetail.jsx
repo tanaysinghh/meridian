@@ -91,9 +91,9 @@ export default function PRDetail() {
           <motion.div variants={fadeUp}>
             <Panel title="Diff summary">
               <div className="p-4 grid grid-cols-3 text-sm">
-                <StatBig label="Additions" value={pr.additions} color="#2fa77e" prefix="+" />
-                <StatBig label="Deletions" value={pr.deletions} color="#d92e58" prefix="−" />
-                <StatBig label="Files"     value={pr.changed_files} color="#f5b544" />
+                <StatBig label="Additions" value={pr.additions} color="#10b981" prefix="+" />
+                <StatBig label="Deletions" value={pr.deletions} color="#ef4444" prefix="−" />
+                <StatBig label="Files"     value={pr.changed_files} color="#035BD6" />
               </div>
               <div className="hairline-t p-4">
                 <div className="text-xs text-ink3 mono uppercase mb-2">Files touched</div>
@@ -195,7 +195,7 @@ function ScoreDial({ score, tier }) {
             <stop offset="1"   stopColor={color} stopOpacity="1" />
           </linearGradient>
         </defs>
-        <circle cx={size/2} cy={size/2} r={r} stroke="#e8ddc5" strokeWidth={stroke} fill="none" />
+        <circle cx={size/2} cy={size/2} r={r} stroke="#2a2d36" strokeWidth={stroke} fill="none" />
         <motion.circle
           cx={size/2} cy={size/2} r={r}
           stroke={`url(#dial-${tier})`}
@@ -220,7 +220,7 @@ function ScoreDial({ score, tier }) {
 
 function ContributionBar({ contrib, delay }) {
   const isUp = contrib.direction === 'up';
-  const color = isUp ? '#e6552a' : '#2fa77e';
+  const color = isUp ? '#f97316' : '#10b981';
   const width = Math.min(contrib.weight * 100, 50);
   return (
     <div className="flex items-center gap-3 py-1">
@@ -276,12 +276,12 @@ function OutcomeForm({ prId, initial }) {
       <Toggle label="Caused incident" checked={v.caused_incident}  onChange={x => setV({ ...v, caused_incident: x })} />
       <textarea value={v.notes || ''} onChange={e => setV({ ...v, notes: e.target.value })}
         placeholder="Notes (optional)"
-        className="w-full bg-white hairline p-2 text-sm text-ink outline-none min-h-[80px] focus:shadow-accent-glow transition-shadow" />
+        className="w-full bg-bg hairline p-2 text-sm text-ink outline-none min-h-[80px] focus:outline-accent" />
       <motion.button
         whileHover={{ y: -1 }}
         whileTap={{ scale: 0.98 }}
         onClick={save}
-        className="w-full bg-grad-accent text-white py-2 text-sm font-medium shadow-accent-glow"
+        className="w-full bg-accent hover:bg-accent2 text-white py-2 text-sm font-medium transition-colors"
       >
         {saved ? 'Saved ✓' : 'Save outcome'}
       </motion.button>

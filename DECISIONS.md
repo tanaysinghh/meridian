@@ -152,3 +152,98 @@ without publishing packages.
 - Multi-tenant SaaS billing. Single-org-per-deploy for now, but schema is
   org-scoped so it's a small lift later.
 - Kubernetes / prod deploy config beyond what env vars support.
+
+## v2 visual design — palette anchored on #035BD6 (2026-08)
+
+The v1 palette (obsidian/violet base + warm ivory panels + amber/coral accent)
+was too decorative — orbs, gradient meshes, cream cards clashed with the
+"dense, quiet, keyboard-first" positioning we already sell in copy. Revamped
+to match the Linear/Vercel/Raycast family alongside UptimeMonitor and
+HireTrack so the three projects visibly share a design system.
+
+Fixed constraint: primary accent **#035BD6**. Everything else derived to
+harmonize with it as anchor.
+
+### Final palette
+
+| Token       | Hex                          | Purpose                            |
+|-------------|------------------------------|------------------------------------|
+| `bg`        | `#08090b`                    | page background                    |
+| `bg2`       | `#0f1013`                    | elevated (nav active)              |
+| `bg3`       | `#16181d`                    | higher elevated (modals)           |
+| `panel`     | `#0d0e11`                    | default card surface               |
+| `panel2`    | `#14161b`                    | hover / secondary card             |
+| `line`      | `#1e2027`                    | subtle border                      |
+| `line2`     | `#2a2d36`                    | stronger border                    |
+| `ink`/`onbg`   | `#f5f6f8`                 | primary text                       |
+| `ink2`/`onbg2` | `#9ba1ad`                 | secondary text                     |
+| `ink3`/`onbg3` | `#5c626e`                 | muted / meta                       |
+| `accent`    | `#035BD6`                    | brand blue (the anchor)            |
+| `accent2`   | `#1d6ee8`                    | hover / brighter                   |
+| `accent3`   | `#0a4bab`                    | pressed / deeper                   |
+| `tier.low`      | `#10b981` (text `#6ee7b7`)  | risk tier — low        |
+| `tier.medium`   | `#eab308` (text `#fcd34d`)  | risk tier — medium     |
+| `tier.high`     | `#f97316` (text `#fdba74`)  | risk tier — high       |
+| `tier.critical` | `#ef4444` (text `#fca5a5`)  | risk tier — critical   |
+
+### Rationale
+
+- Dark editorial base (near-black `#08090b`, not pure black — pure black
+  reads oled-y and cheap; `#08090b` has just enough warm shift to feel
+  intentional).
+- `ink` and `onbg` token families both point at the same light-on-dark
+  values. Kept both token names so no component file needed a rename
+  churn — the palette flip is a data-only change on the theme.
+- Tier colors chosen from a single green→yellow→orange→red temperature
+  scale so they read as a system, and tuned bright enough to survive on
+  dark bg without shouting.
+- Blue is used ONCE per view for the primary affordance (CTA, active nav
+  stripe, focus ring, key-metric hover bar). Every place the old palette
+  used amber/coral for decoration is now neutral.
+- Rounded corners: zero across every token (`borderRadius: 0` for every
+  key, including `full`, plus a `* { border-radius: 0 !important; }` reset).
+  Sharp corners are non-negotiable across the three-project family.
+
+### What was ripped out
+
+- `GradientOrb` component (now a no-op stub; blue radial wash lives in the
+  `.hero-wash` CSS class instead).
+- `orb-drift` keyframes.
+- Cream/ivory panel surfaces and all amber (`#f5b544`) / coral (`#ff8a5a`)
+  / rose (`#e5406b` / `#d92e58`) hex codes hardcoded across components.
+- The dual light/dark skeleton variants (one dark variant now).
+
+### What was kept
+
+- Every motion primitive: `card-lift`, `row-hover`, `pulseGlow`, page
+  transitions, count-up numbers, animated risk dial, staggered entrances,
+  chart animations, skeleton shimmer. Re-skinned onto the new tokens
+  rather than rebuilt.
+- The `Panel`/`StatTile`/`TierPill` component APIs (props unchanged) so
+  the seven dashboard tabs, PR detail, landing, and login all inherited
+  the new look without touching their logic.
+
+## Render deploy config (2026-08)
+
+Blueprint (`render.yaml`) provisions four resources in one apply:
+- `meridian-db` (managed Postgres 16, private).
+- `meridian-ml` — **`pserv` (private service), no public URL**. Only the
+  api reaches it, at `http://meridian-ml:8000` on Render's internal
+  network. This is the right call: the scorer takes untrusted-shape input
+  and has no auth of its own; keeping it off the public internet is the
+  cheapest hardening move available.
+- `meridian-api` — Node web service. Runs `node src/db/migrate.js && node
+  src/index.js` on boot; schema is `CREATE ... IF NOT EXISTS` throughout,
+  so re-runs are safe. Health check: `/health/ready`.
+- `meridian-web` — Vite static site. Reads `VITE_API_BASE` at build time;
+  same-origin `/api` proxy pattern only works in dev.
+
+Auth cookies stay first-party per hostname; the walkthrough covers the
+custom-domain apex-sharing case (`COOKIE_DOMAIN=.app.co`) explicitly so
+the login flow keeps working across `app.co` + `api.app.co`.
+
+Secrets that are randomly generated by Render (`JWT_SECRET`,
+`SESSION_SECRET`, `GITHUB_WEBHOOK_SECRET`) use `generateValue: true`, so
+they're never in the repo. Everything else (`GITHUB_CLIENT_*`, CORS
+origins, admin bootstrap creds) uses `sync: false` — Render's dashboard
+prompts for each on first Blueprint apply.

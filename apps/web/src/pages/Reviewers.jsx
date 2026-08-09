@@ -38,7 +38,7 @@ export default function Reviewers() {
                     <div className="flex-1">
                       <div className="h-2 bg-line overflow-hidden">
                         <motion.div
-                          className="h-2 bg-grad-accent"
+                          className="h-2 bg-accent"
                           initial={{ width: 0 }}
                           animate={{ width: `${(u.open_reviews / max) * 100}%` }}
                           transition={{ duration: 0.9, delay: 0.1 + i * 0.04, ease }}

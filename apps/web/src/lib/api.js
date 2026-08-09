@@ -1,4 +1,9 @@
-const BASE = '/api';
+// In dev, Vite proxies /api → localhost:4000. In prod (Render), set
+// VITE_API_BASE at build time to the API service origin (e.g.
+// https://meridian-api.onrender.com). All requests use credentials:'include',
+// so the API must send CORS with credentials + list this origin in
+// ALLOWED_ORIGINS. Falls back to /api for the dev proxy path.
+const BASE = (import.meta.env?.VITE_API_BASE || '/api').replace(/\/$/, '');
 
 // Read the CSRF token cookie the API set on the last GET. We echo it back in
 // X-CSRF-Token on every mutating request — the API rejects mutating requests

@@ -23,9 +23,6 @@ export default function Login() {
     } finally { setBusy(false); }
   };
 
-  // The GitHub button hits the API. If OAuth isn't configured the API returns
-  // 503 with a JSON body; probe for that and show an inline hint rather than
-  // silently doing nothing.
   const [ghHint, setGhHint] = useState(null);
   const startGitHub = async e => {
     e.preventDefault();
@@ -48,13 +45,13 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex bg-bg">
-      <div className="hidden md:flex flex-1 hairline-bg-r p-10 grid-bg">
+      <div className="hidden md:flex flex-1 hairline-bg-r p-10 grid-bg hero-wash">
         <div className="m-auto max-w-md">
           <LogoLight />
-          <div className="mt-16 serif text-5xl leading-tight text-onbg">
-            Sign in to see<br />what's about to<br /><span className="italic text-onbg2">break.</span>
+          <div className="mt-16 serif text-5xl leading-tight text-ink">
+            Sign in to see<br />what's about to<br /><span className="italic text-accent">break.</span>
           </div>
-          <div className="mt-6 text-onbg2 leading-relaxed">
+          <div className="mt-6 text-ink2 leading-relaxed">
             Meridian gives your review queue a signal it never had.
             Every PR, scored — every score, explained.
           </div>
@@ -67,7 +64,7 @@ export default function Login() {
           <p className="text-ink2 mt-1 text-sm">Continue with GitHub or your work email.</p>
 
           <button onClick={startGitHub}
-            className="mt-8 w-full hairline bg-white px-4 py-2.5 text-sm text-ink flex items-center justify-center gap-2 hover:bg-panel2">
+            className="mt-8 w-full hairline bg-bg px-4 py-2.5 text-sm text-ink flex items-center justify-center gap-2 hover:bg-panel2 transition-colors">
             <GhIcon /> Continue with GitHub
           </button>
           {ghHint && <div className="mt-2 text-xs text-ink3">{ghHint}</div>}
@@ -80,16 +77,16 @@ export default function Login() {
             <Field label="Email">
               <input type="email" autoComplete="email" required
                 value={email} onChange={e => setEmail(e.target.value)}
-                className="w-full bg-white hairline px-3 py-2 text-ink outline-none focus:shadow-panel" />
+                className="w-full bg-bg hairline px-3 py-2 text-ink outline-none focus:outline-accent" />
             </Field>
             <Field label="Password">
               <input type="password" autoComplete="current-password" required
                 value={password} onChange={e => setPassword(e.target.value)}
-                className="w-full bg-white hairline px-3 py-2 text-ink outline-none" />
+                className="w-full bg-bg hairline px-3 py-2 text-ink outline-none focus:outline-accent" />
             </Field>
             {err && <div className="text-tier-critical text-sm">{err}</div>}
             <button disabled={busy}
-              className="w-full bg-ink text-panel px-4 py-2.5 text-sm font-medium hover:bg-bg2 disabled:opacity-60">
+              className="w-full bg-accent text-white px-4 py-2.5 text-sm font-medium hover:bg-accent2 disabled:opacity-60 transition-colors">
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
@@ -115,10 +112,10 @@ function LogoLight() {
   return (
     <div className="flex items-center gap-2 select-none">
       <svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-        <path d="M2 20 L8 6 L12 14 L16 4 L22 20" stroke="#f2f6fb" strokeWidth="1.75" strokeLinejoin="miter" strokeLinecap="square" />
-        <path d="M2 20 H22" stroke="#f5b544" strokeWidth="1.25" />
+        <path d="M2 20 L8 6 L12 14 L16 4 L22 20" stroke="#f5f6f8" strokeWidth="1.75" strokeLinejoin="miter" strokeLinecap="square" />
+        <path d="M2 20 H22" stroke="#035BD6" strokeWidth="1.25" />
       </svg>
-      <span className="font-medium tracking-tight text-onbg" style={{ letterSpacing: '-0.01em' }}>Meridian</span>
+      <span className="font-medium tracking-tight text-ink" style={{ letterSpacing: '-0.01em' }}>Meridian</span>
     </div>
   );
 }

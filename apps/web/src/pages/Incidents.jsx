@@ -8,10 +8,10 @@ import { fadeUp, ease } from '../lib/motion.js';
 
 const SEVERITIES = ['sev1','sev2','sev3','sev4'];
 const SEV_STYLES = {
-  sev1: { text: '#7a1230', bg: '#fbd0dc', dot: '#d92e58' },
-  sev2: { text: '#7a2818', bg: '#fbd7c9', dot: '#e6552a' },
-  sev3: { text: '#7a4d0a', bg: '#fbe7c8', dot: '#e88b1a' },
-  sev4: { text: '#4a4152', bg: '#efe9dc', dot: '#86798e' }
+  sev1: { text: '#fca5a5', bg: 'rgba(239, 68, 68, 0.14)',  dot: '#ef4444' },
+  sev2: { text: '#fdba74', bg: 'rgba(249, 115, 22, 0.14)', dot: '#f97316' },
+  sev3: { text: '#fcd34d', bg: 'rgba(234, 179, 8, 0.14)',  dot: '#eab308' },
+  sev4: { text: '#9ba1ad', bg: 'rgba(155, 161, 173, 0.10)', dot: '#5c626e' }
 };
 
 export default function Incidents() {
@@ -79,22 +79,22 @@ export default function Incidents() {
             <div className="p-4 space-y-2.5">
               <input value={form.title} onChange={e => setForm({...form, title: e.target.value})}
                 placeholder="Short title"
-                className="w-full bg-white hairline px-2 py-1.5 text-sm outline-none focus:shadow-accent-glow transition-shadow" />
+                className="w-full bg-bg hairline px-2 py-1.5 text-sm outline-none focus:shadow-accent-glow transition-shadow" />
               <select value={form.severity} onChange={e => setForm({...form, severity: e.target.value})}
-                className="w-full bg-white hairline px-2 py-1.5 text-sm cursor-pointer">
+                className="w-full bg-bg hairline px-2 py-1.5 text-sm cursor-pointer">
                 {SEVERITIES.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
               </select>
               <select value={form.related_pr_id} onChange={e => setForm({...form, related_pr_id: e.target.value})}
-                className="w-full bg-white hairline px-2 py-1.5 text-sm cursor-pointer">
+                className="w-full bg-bg hairline px-2 py-1.5 text-sm cursor-pointer">
                 <option value="">Not linked to a specific PR</option>
                 {prs.map(p => <option key={p.id} value={p.id}>{p.repo_full_name} #{p.number} — {p.title.slice(0, 50)}</option>)}
               </select>
               <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})}
                 placeholder="What broke, how did we find it, what fixed it?"
-                className="w-full bg-white hairline p-2 text-sm outline-none min-h-[100px] focus:shadow-accent-glow transition-shadow" />
+                className="w-full bg-bg hairline p-2 text-sm outline-none min-h-[100px] focus:shadow-accent-glow transition-shadow" />
               <motion.button
                 whileHover={{ y: -1 }} whileTap={{ scale: 0.98 }}
-                onClick={submit} className="w-full bg-grad-critical text-white py-2 text-sm font-medium shadow-glow-critical">
+                onClick={submit} className="w-full bg-accent hover:bg-accent2 text-white py-2 text-sm font-medium transition-colors">
                 Report incident
               </motion.button>
               <div className="text-xs text-ink3 leading-relaxed">

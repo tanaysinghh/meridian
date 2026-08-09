@@ -92,7 +92,7 @@ function Select({ label, value, onChange, options }) {
     <label className="flex items-center gap-2 text-xs">
       <span className="text-ink3 mono uppercase tracking-wider">{label}</span>
       <select value={value} onChange={e => onChange(e.target.value)}
-        className="bg-white hairline px-2 py-1.5 text-ink text-xs hover:bg-panel2 transition-colors cursor-pointer">
+        className="bg-bg hairline px-2 py-1.5 text-ink text-xs hover:bg-panel2 transition-colors cursor-pointer">
         {options.map(o => <option key={o} value={o}>{o || 'any'}</option>)}
       </select>
     </label>

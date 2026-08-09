@@ -10,8 +10,8 @@ import EmptyState from '../components/EmptyState.jsx';
 import { SkeletonPanel, SkeletonBar } from '../components/Skeleton.jsx';
 import { fadeUp, stagger, ease } from '../lib/motion.js';
 
-const AXIS = { stroke: '#86798e', fontSize: 11, fontFamily: 'IBM Plex Mono', tickLine: false, axisLine: false };
-const GRID = '#e8ddc5';
+const AXIS = { stroke: '#5c626e', fontSize: 11, fontFamily: 'IBM Plex Mono', tickLine: false, axisLine: false };
+const GRID = '#1e2027';
 
 export default function Analytics() {
   const [size,    setSize]    = useState(null);
@@ -78,20 +78,20 @@ export default function Analytics() {
                       <AreaChart data={sizeData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="grad-avg" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%"   stopColor="#f5b544" stopOpacity={0.50} />
-                            <stop offset="100%" stopColor="#f5b544" stopOpacity={0}    />
+                            <stop offset="0%"   stopColor="#035BD6" stopOpacity={0.55} />
+                            <stop offset="100%" stopColor="#035BD6" stopOpacity={0}    />
                           </linearGradient>
                           <linearGradient id="grad-median" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%"   stopColor="#2fa77e" stopOpacity={0.35} />
-                            <stop offset="100%" stopColor="#2fa77e" stopOpacity={0}    />
+                            <stop offset="0%"   stopColor="#10b981" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="#10b981" stopOpacity={0}    />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
                         <XAxis dataKey="week" {...AXIS} />
                         <YAxis {...AXIS} />
-                        <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: '#d8cebb', strokeWidth: 1 }} />
-                        <Area type="monotone" dataKey="avg"    stroke="#f5b544" strokeWidth={2} fill="url(#grad-avg)"    animationDuration={900} />
-                        <Area type="monotone" dataKey="median" stroke="#2fa77e" strokeWidth={1.5} fill="url(#grad-median)" animationDuration={900} />
+                        <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: '#2a2d36', strokeWidth: 1 }} />
+                        <Area type="monotone" dataKey="avg"    stroke="#035BD6" strokeWidth={2} fill="url(#grad-avg)"    animationDuration={900} />
+                        <Area type="monotone" dataKey="median" stroke="#10b981" strokeWidth={1.5} fill="url(#grad-median)" animationDuration={900} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -111,10 +111,10 @@ export default function Analytics() {
                         <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
                         <XAxis dataKey="week" {...AXIS} />
                         <YAxis {...AXIS} />
-                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#efe9dc' }} />
-                        <Bar  dataKey="merged"   fill="#e8ddc5" animationDuration={800} />
-                        <Bar  dataKey="reverted" fill="#d92e58" animationDuration={800} />
-                        <Line type="monotone" dataKey="rate" stroke="#e6552a" strokeWidth={2} dot={{ fill: '#e6552a', r: 3 }} animationDuration={900} />
+                        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(3,91,214,0.08)' }} />
+                        <Bar  dataKey="merged"   fill="#2a2d36" animationDuration={800} />
+                        <Bar  dataKey="reverted" fill="#ef4444" animationDuration={800} />
+                        <Line type="monotone" dataKey="rate" stroke="#f97316" strokeWidth={2} dot={{ fill: '#f97316', r: 3 }} animationDuration={900} />
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
@@ -178,7 +178,7 @@ export default function Analytics() {
 }
 
 function RiskDot({ value }) {
-  const color = value >= 0.65 ? '#d92e58' : value >= 0.35 ? '#e88b1a' : '#2fa77e';
+  const color = value >= 0.65 ? '#ef4444' : value >= 0.35 ? '#eab308' : '#10b981';
   return <span className="inline-block w-1.5 h-1.5 mr-2 align-middle" style={{ background: color }} />;
 }
 
@@ -210,14 +210,14 @@ function Heatmap({ cells }) {
                 const c = grid[`${di+1}-${h}`];
                 const intensity = c ? c.merges / max : 0;
                 const risk = c?.avg_risk || 0;
-                // tier-based warm palette — mint → amber → coral → rose
-                const tierRGB = risk < 0.35 ? '47, 167, 126'
-                              : risk < 0.60 ? '232, 139, 26'
-                              : risk < 0.80 ? '230, 85, 42'
-                                            : '217, 46, 88';
+                // tier-based palette — green → yellow → orange → red
+                const tierRGB = risk < 0.35 ? '16, 185, 129'
+                              : risk < 0.60 ? '234, 179, 8'
+                              : risk < 0.80 ? '249, 115, 22'
+                                            : '239, 68, 68';
                 const bg = c
-                  ? `rgba(${tierRGB}, ${0.18 + intensity * 0.75})`
-                  : '#efe9dc';
+                  ? `rgba(${tierRGB}, ${0.14 + intensity * 0.70})`
+                  : '#0f1013';
                 return (
                   <motion.td key={h}
                     initial={{ opacity: 0, scale: 0.6 }}
@@ -225,7 +225,7 @@ function Heatmap({ cells }) {
                     transition={{ delay: (di * 24 + h) * 0.003, duration: 0.25 }}
                     title={c ? `${c.merges} merges · avg risk ${risk.toFixed(2)}` : ''}
                     className="w-6 h-6 hover:outline hover:outline-2 hover:outline-accent transition-all"
-                    style={{ background: bg, border: '1px solid #f8f4ec' }} />
+                    style={{ background: bg, border: '1px solid #08090b' }} />
                 );
               })}
             </tr>
@@ -240,13 +240,13 @@ function Heatmap({ cells }) {
 }
 
 const tooltipStyle = {
-  background: '#ffffff',
-  border: '1px solid #d8cebb',
+  background: '#0d0e11',
+  border: '1px solid #2a2d36',
   borderRadius: 0,
   fontFamily: 'IBM Plex Mono',
   fontSize: 11,
-  color: '#1a1424',
-  boxShadow: '0 8px 24px -8px rgba(10, 6, 20, 0.24)',
+  color: '#f5f6f8',
+  boxShadow: '0 8px 24px -8px rgba(0, 0, 0, 0.65)',
   padding: '8px 10px'
 };
 

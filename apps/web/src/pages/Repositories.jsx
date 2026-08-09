@@ -120,7 +120,7 @@ function ThresholdEditor({ repo, onSaved }) {
       onChange={e => setV(e.target.value)}
       onClick={e => e.stopPropagation()}
       onBlur={async () => { await api.updateRepo(repo.id, { risk_threshold: Number(v) }); onSaved(); }}
-      className="w-20 bg-white hairline px-2 py-1 mono text-xs text-ink text-right focus:shadow-accent-glow transition-shadow" />
+      className="w-20 bg-bg hairline px-2 py-1 mono text-xs text-ink text-right focus:shadow-accent-glow transition-shadow" />
   );
 }
 
@@ -133,18 +133,18 @@ function NewRuleForm({ repoId, onCreated }) {
     <div className="hairline-t p-4 space-y-2 bg-panel2/40">
       <div className="text-xs text-ink3 mono uppercase tracking-wider mb-1">Add a rule</div>
       <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Auth files always high risk"
-        className="w-full bg-white hairline px-2 py-1.5 text-sm text-ink outline-none focus:shadow-accent-glow transition-shadow" />
+        className="w-full bg-bg hairline px-2 py-1.5 text-sm text-ink outline-none focus:shadow-accent-glow transition-shadow" />
       <input value={paths} onChange={e => setPaths(e.target.value)} placeholder="path prefixes, comma separated (src/auth/, src/session/)"
-        className="w-full bg-white hairline px-2 py-1.5 text-sm text-ink outline-none mono text-xs focus:shadow-accent-glow transition-shadow" />
+        className="w-full bg-bg hairline px-2 py-1.5 text-sm text-ink outline-none mono text-xs focus:shadow-accent-glow transition-shadow" />
       <div className="flex gap-2">
         <select value={tier} onChange={e => setTier(e.target.value)}
-          className="bg-white hairline px-2 py-1.5 text-sm text-ink flex-1 cursor-pointer">
+          className="bg-bg hairline px-2 py-1.5 text-sm text-ink flex-1 cursor-pointer">
           <option value="medium">medium</option>
           <option value="high">high</option>
           <option value="critical">critical</option>
         </select>
         <input value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason shown on PR"
-          className="flex-[2] bg-white hairline px-2 py-1.5 text-sm text-ink outline-none focus:shadow-accent-glow transition-shadow" />
+          className="flex-[2] bg-bg hairline px-2 py-1.5 text-sm text-ink outline-none focus:shadow-accent-glow transition-shadow" />
       </div>
       <motion.button
         whileHover={{ y: -1 }} whileTap={{ scale: 0.98 }}
@@ -158,7 +158,7 @@ function NewRuleForm({ repoId, onCreated }) {
           setName(''); setPaths(''); setReason('');
           onCreated();
         }}
-        className="w-full bg-grad-accent text-white py-2 text-sm font-medium shadow-accent-glow"
+        className="w-full bg-accent hover:bg-accent2 text-white py-2 text-sm font-medium transition-colors"
       >
         Add rule
       </motion.button>

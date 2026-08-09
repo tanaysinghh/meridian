@@ -45,10 +45,10 @@ export default function Overview() {
           initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
           className="text-xs mono flex items-center gap-2"
-          style={{ color: '#6ad9b0' }}
+          style={{ color: '#10b981' }}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-tier-low animate-pulseGlow"
-            style={{ boxShadow: '0 0 8px #6ad9b0' }} />
+            style={{ boxShadow: '0 0 8px #10b981' }} />
           just now · {flash.repo} scored {flash.tier}
         </motion.div>
       )}
@@ -115,8 +115,8 @@ export default function Overview() {
 function RiskMixHero({ tierMap, totalOpen, slaBreaches }) {
   const tiers = ['critical', 'high', 'medium', 'low'];
   return (
-    <div className="relative bg-grad-panel shadow-lift overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 h-[3px] bg-grad-accent" />
+    <div className="relative bg-panel shadow-lift overflow-hidden">
+      <div className="absolute top-0 left-0 right-0 h-px bg-accent" />
       <div className="p-6 pb-8">
         <div className="flex items-baseline justify-between mb-8">
           <div>

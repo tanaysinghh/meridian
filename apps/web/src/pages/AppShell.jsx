@@ -52,8 +52,8 @@ export default function AppShell() {
                   {isActive && (
                     <motion.span
                       layoutId="nav-active"
-                      className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent"
-                      style={{ boxShadow: '0 0 12px #f5b544' }}
+                      className="absolute left-0 top-0 bottom-0 w-[2px] bg-accent"
+                      style={{ boxShadow: '0 0 10px rgba(3,91,214,0.9)' }}
                       transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                     />
                   )}
@@ -66,14 +66,14 @@ export default function AppShell() {
         </nav>
         <div className="mt-auto p-4 hairline-bg-t text-xs text-onbg3">
           <div className="flex items-center gap-2 mb-3">
-            <span className={`inline-block w-1.5 h-1.5 rounded-full transition-colors ${
+            <span className={`inline-block w-1.5 h-1.5 transition-colors ${
               live === 'live' ? 'bg-tier-low' : 'bg-onbg3'
             }`}
-              style={live === 'live' ? { boxShadow: '0 0 8px #6ad9b0' } : {}} />
+              style={live === 'live' ? { boxShadow: '0 0 8px #10b981' } : {}} />
             <span className="mono uppercase tracking-wider">{live}</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-grad-accent flex items-center justify-center text-white text-xs font-medium">
+            <div className="w-7 h-7 bg-accent flex items-center justify-center text-white text-xs font-medium">
               {(user?.name || '?').slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0">
@@ -104,8 +104,8 @@ function LogoOnBg() {
   return (
     <div className="flex items-center gap-2 select-none">
       <svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-        <path d="M2 20 L8 6 L12 14 L16 4 L22 20" stroke="#f2f6fb" strokeWidth="1.75" strokeLinejoin="miter" strokeLinecap="square" />
-        <path d="M2 20 H22" stroke="#f5b544" strokeWidth="1.25" />
+        <path d="M2 20 L8 6 L12 14 L16 4 L22 20" stroke="#f5f6f8" strokeWidth="1.75" strokeLinejoin="miter" strokeLinecap="square" />
+        <path d="M2 20 H22" stroke="#035BD6" strokeWidth="1.25" />
       </svg>
       <span className="font-medium tracking-tight text-onbg" style={{ letterSpacing: '-0.01em' }}>Meridian</span>
     </div>
