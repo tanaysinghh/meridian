@@ -227,11 +227,20 @@ harmonize with it as anchor.
 
 Blueprint (`render.yaml`) provisions four resources in one apply:
 - `meridian-db` (managed Postgres 16, private).
-- `meridian-ml` — **`pserv` (private service), no public URL**. Only the
-  api reaches it, at `http://meridian-ml:8000` on Render's internal
-  network. This is the right call: the scorer takes untrusted-shape input
-  and has no auth of its own; keeping it off the public internet is the
-  cheapest hardening move available.
+- `meridian-ml` — **public web service, gated by a shared-secret header**.
+  Render's free tier doesn't support private services (`type: pserv` needs
+  a paid plan), so the scorer runs as a normal public web service. To keep
+  it from being open to the internet, `main.py` installs a middleware that
+  rejects every non-health request whose `X-Internal-Secret` header doesn't
+  match `ML_INTERNAL_SECRET` (constant-time compare, generic 401 with no
+  detail). Render auto-generates that secret on the ml service; the api
+  reads the same value via `fromService` binding so they can't drift.
+  Tradeoff vs. the private-service design: the scorer's URL is now
+  reachable by anyone who guesses it, and its DoS surface widens from
+  "other services in the VPC" to "the whole internet." App-layer auth
+  mitigates unauthorized *use*, not floods of unauthorized *attempts* —
+  Render's platform-level rate limiting is the only defense there on free
+  tier. Revisit if we upgrade to a plan with `pserv` support.
 - `meridian-api` — Node web service. Runs `node src/db/migrate.js && node
   src/index.js` on boot; schema is `CREATE ... IF NOT EXISTS` throughout,
   so re-runs are safe. Health check: `/health/ready`.

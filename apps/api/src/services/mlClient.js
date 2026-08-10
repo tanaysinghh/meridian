@@ -6,9 +6,11 @@ import { logger } from '../utils/logger.js';
 // ingestion doesn't stall on ML being down.
 export async function scorePR(features) {
   try {
+    const headers = { 'content-type': 'application/json' };
+    if (config.mlInternalSecret) headers['x-internal-secret'] = config.mlInternalSecret;
     const { statusCode, body } = await request(`${config.mlServiceUrl}/score`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers,
       body: JSON.stringify({ features }),
       bodyTimeout: 5000
     });

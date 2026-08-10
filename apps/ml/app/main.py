@@ -4,10 +4,14 @@ import os
 import pickle
 from pathlib import Path
 
+import hmac
+
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 from .explain import contributions
 from .features import to_vector
@@ -22,6 +26,31 @@ log = logging.getLogger("meridian.ml")
 
 app = FastAPI(title="Meridian ML", docs_url=None, redoc_url=None, openapi_url=None)
 
+# Health endpoints are open so orchestrators (Render, k8s) can probe without
+# knowing the shared secret. Everything else must present X-Internal-Secret.
+_PUBLIC_PATHS = frozenset({"/health", "/health/live", "/health/ready"})
+_INTERNAL_SECRET = os.environ.get("ML_INTERNAL_SECRET", "")
+# In production, refuse to boot without a secret — an unset value would make
+# hmac.compare_digest("", "") return True and open /score to the world.
+if os.environ.get("ENV") == "production" and not _INTERNAL_SECRET:
+    raise RuntimeError("ML_INTERNAL_SECRET must be set in production")
+
+
+class InternalSecretMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Health probes and CORS preflights bypass the shared-secret check.
+        if request.url.path in _PUBLIC_PATHS or request.method == "OPTIONS":
+            return await call_next(request)
+        provided = request.headers.get("x-internal-secret", "")
+        if not _INTERNAL_SECRET or not hmac.compare_digest(provided, _INTERNAL_SECRET):
+            # Generic 401 — do not disclose whether the header was missing,
+            # malformed, or wrong.
+            return JSONResponse({"detail": "unauthorized"}, status_code=401)
+        return await call_next(request)
+
+
+app.add_middleware(InternalSecretMiddleware)
+
 # The ML service is internal — only the Meridian API should call it. Origins
 # are opt-in via env; default is empty (no browser access).
 _allowed = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
@@ -31,7 +60,7 @@ if _allowed:
         allow_origins=_allowed,
         allow_credentials=False,
         allow_methods=["POST", "GET"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-Internal-Secret"],
     )
 
 _state = {"model": None, "version": None}

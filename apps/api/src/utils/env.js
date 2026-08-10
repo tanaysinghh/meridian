@@ -64,6 +64,7 @@ export const config = {
   jwtRefreshTtlDays: num('JWT_REFRESH_TTL_DAYS', 30),
   bcryptCost: num('BCRYPT_COST', 12),
   mlServiceUrl: process.env.ML_SERVICE_URL || 'http://localhost:8000',
+  mlInternalSecret: process.env.ML_INTERNAL_SECRET || '',
   github: {
     clientId: process.env.GITHUB_CLIENT_ID || '',
     clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
