@@ -155,7 +155,6 @@ services:
   - type: web
     name: meridian-web
     runtime: static
-    plan: free
     rootDir: apps/web
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
