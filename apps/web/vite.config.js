@@ -6,7 +6,8 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://localhost:4000', changeOrigin: true, rewrite: p => p.replace(/^\/api/, '') }
+      '/api': { target: 'http://localhost:4000', changeOrigin: true, rewrite: p => p.replace(/^\/api/, '') },
+      '/live': { target: 'http://localhost:4000', changeOrigin: true, ws: true }
     }
   },
   // Strip debug console calls from the production bundle. .error / .warn kept.
