@@ -1,0 +1,26 @@
+# Development profile.
+#
+# The relaxations here are all ones the previous Node service made when
+# NODE_ENV !== 'production': a fallback JWT secret, plaintext-friendly logging,
+# non-secure cookies, and the opt-in unsigned-webhook path for fixture replay.
+
+logging:
+  level:
+    root: ${LOG_LEVEL:debug}
+    com.meridian.api: ${LOG_LEVEL:debug}
+
+spring:
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+meridian:
+  # Cookies are only marked Secure in prod, matching `secure: config.isProd`.
+  cookie-secure: false
+  # Dev-only stand-in so `npm run dev`-style startup works with no .env at all.
+  # StartupChecks logs this loudly and refuses to let it reach production.
+  jwt:
+    secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-do-not-use-in-prod}
+  # Error responses include message + stack in dev, as the old errorHandler did.
+  expose-error-details: true

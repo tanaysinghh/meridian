@@ -1,0 +1,24 @@
+# Keep the build context small and make sure nothing local leaks into an image layer.
+target/
+.mvn/
+!.mvn/wrapper/maven-wrapper.properties
+
+# Secrets — never in a build context.
+.env
+.env.*
+!.env.example
+
+# Dev-only output from the email sender's no-provider fallback.
+outbox/
+
+# Editor / OS noise
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Docs and tooling that the image has no use for
+README.md
+Dockerfile
+.dockerignore

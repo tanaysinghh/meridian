@@ -7,7 +7,7 @@ The non-obvious choices behind the code, kept as a living reference.
 ```
 meridian/
 ├── apps/
-│   ├── api/       Node · Express · Postgres. REST + Socket.IO. JWT auth.
+│   ├── api/       Java 21 · Spring Boot · Postgres. REST + STOMP. JWT auth.
 │   ├── web/       React · Vite · Tailwind. Landing + dashboard.
 │   └── ml/        FastAPI · LightGBM. Risk-scoring microservice.
 ├── packages/
@@ -29,7 +29,8 @@ shapes, risk-tier enums, PR schema) in one place without publishing packages.
 3. Rules engine runs **after** the ML score → applies per-org overrides →
    tier decided by `max(rule_tier, model_tier)` (rules can escalate,
    never de-escalate).
-4. Socket.IO broadcasts the updated PR to dashboard room `org:{orgId}`.
+4. The updated PR is pushed to dashboards subscribed to the org's STOMP
+   destination, `/topic/org.{orgId}`.
 5. A post-merge job (nightly) checks for reverts / hotfixes and writes
    outcomes to `pr_outcomes` — the training signal for future model runs.
 
@@ -61,19 +62,31 @@ shapes, risk-tier enums, PR schema) in one place without publishing packages.
 
 ## Rules engine
 
-- Stored per-repo in `repo_rules` (JSON). Predicates validated with Zod at
-  write time as a discriminated union (`path_glob`, `touches_paths`,
-  `author_in`, `size_gt`, `regex_match`) so unexpected shapes never reach
-  the evaluator.
+- Stored per-repo in `repo_rules` (JSONB). Predicates validated at write
+  time as a Jackson polymorphic union keyed on `type` (`path_glob`,
+  `touches_paths`, `author_in`, `size_gt`, `regex_match`), with Bean
+  Validation constraints per arm, so unexpected shapes never reach the
+  evaluator.
+- The evaluator reads the stored JSON rather than the request DTOs, so a
+  rule written before a validation change still evaluates, and one
+  malformed rule is skipped instead of failing the whole scoring run.
 - Rules can escalate a tier and attach a labelled reason. They never
   de-escalate.
 
 ## Realtime
 
-- Socket.IO namespace `/live`. Rooms are per-org. Events: `pr.updated`,
-  `pr.scored`, `pr.merged`, `incident.reported`.
-- The handshake reuses the access-token cookie; connections without a
-  valid token are rejected.
+- STOMP over WebSocket at `/live`, backed by Spring's simple in-memory
+  broker. One destination per org: `/topic/org.{orgId}`.
+- STOMP frames carry a destination but no event name, so the event moves
+  into the message body as `{event, data}`. The frontend's socket module
+  unwraps it and re-emits, which is why the rest of the app still calls
+  `.on('pr.scored', ...)` unchanged. Events: `pr.updated`, `pr.scored`.
+- Two-stage auth. The HTTP upgrade reads the `mrd_at` cookie (a browser
+  cannot set headers on a WebSocket handshake); the CONNECT frame can
+  alternatively carry a token for non-browser clients. Critically, every
+  SUBSCRIBE is checked against the session's own org — destinations are
+  client-chosen strings, so without that check any authenticated user
+  could subscribe to another org's feed by guessing a UUID.
 
 ## Production hardening
 
@@ -84,35 +97,49 @@ password, no login-form defaults, no webhook signature bypass. Each of
 these previously returned a working shortcut; each now returns an explicit
 error unless explicitly re-enabled for local dev via an env flag.
 
-**Config validation** (`apps/api/src/utils/env.js`). Fails fast in
+**Config validation** (`config/StartupChecks.java`). Fails fast in
 production if `JWT_SECRET`, `DATABASE_URL`, or `GITHUB_WEBHOOK_SECRET` is
-missing; rejects a JWT secret shorter than 32 chars.
+missing; rejects a JWT secret shorter than 32 chars, the dev fallback
+secret, wildcard CORS origins, and `ALLOW_UNSIGNED_WEBHOOKS=true`. Runs
+during context refresh, so a misconfigured instance never starts
+accepting traffic.
 
-**HTTP hardening.** Helmet with a tight CSP (this service serves JSON, no
-HTML sources needed); CORS locked to `ALLOWED_ORIGINS` (wildcards
-refused); `express-rate-limit` at 10/15 min on `/auth/*` and 300/min on
-the rest.
+**HTTP hardening.** Spring Security headers with a tight CSP
+(`default-src 'none'` — this service serves JSON, no HTML sources
+needed), `X-Frame-Options: DENY`, HSTS, `Referrer-Policy`,
+`Cross-Origin-Resource-Policy: same-site`, `Permissions-Policy`. CORS
+locked to `ALLOWED_ORIGINS` (wildcards refused at startup). Rate limiting
+via bucket4j at 10/15 min on `/auth/*` and 300/min on the rest, keyed by
+client IP, with health and webhook paths exempt.
 
-**Data-layer hygiene.** Zod validation on every mutating endpoint; every
-DB call uses positional parameters (audited — no string concatenation
-into SQL). Bcrypt cost 12 (tunable); password minimum 12 chars enforced
-at seed time.
+**Data-layer hygiene.** Jakarta Bean Validation on every mutating
+endpoint. All persistence goes through Spring Data JPA; the few native
+queries are Postgres-specific reads (`LATERAL`, `date_trunc`,
+`PERCENTILE_CONT`, `unnest`) and every one uses named parameters — no
+string concatenation into SQL, including the optional filters on
+`GET /prs`, which use `(cast(:p as text) is null or ...)` so the
+statement shape never depends on input. Bcrypt cost 12 (tunable);
+password minimum 12 chars enforced at bootstrap.
 
 **Auth.** JWTs signed with issuer/audience claims; access + refresh
 cookies are httpOnly, `SameSite=Lax`, `Secure` in production. Refresh
 rotation deletes the old session row and issues a new one on every use.
 CSRF double-submit on all mutating routes.
 
-**Logging & errors.** Structured pino logs; access tokens, refresh
-tokens, passwords, hashes, and webhook signatures are redacted from log
-output. The error handler never leaks stack traces in production.
-`installProcessGuards()` turns unhandled rejections and uncaught
-exceptions into structured logs before the process exits.
+**Logging & errors.** One structured line per request carrying only
+method, path, status, duration and user id — headers and bodies are never
+logged, so tokens, cookies and passwords cannot reach the log in the
+first place. `common/SensitiveDataRedactor` covers the remaining cases
+(webhook payload fragments, upstream error bodies) with the same key list
+pino redacted. `GlobalExceptionHandler` returns
+`{"error": "internal_error"}` in production and only attaches
+message/stack when the dev profile asks for it.
 
-**Lifecycle.** Graceful shutdown on SIGTERM/SIGINT (close HTTP → drain
-PG pool). `/health/live` and `/health/ready` on both API and ML.
-Migrations are `CREATE ... IF NOT EXISTS` throughout; `db:reset` refuses
-to run in production without `CONFIRM_RESET=yes`.
+**Lifecycle.** Graceful shutdown (`server.shutdown: graceful`) drains
+in-flight requests, and the scoring executor waits up to 20s for queued
+work. `/health/live` and `/health/ready` on both API and ML, with the
+same response bodies as before. Flyway applies migrations at startup
+before the service begins serving.
 
 **ML service.** `/docs`, `/redoc`, and `/openapi.json` are disabled.
 Public URL is gated by a shared-secret `X-Internal-Secret` header
@@ -124,6 +151,178 @@ via esbuild; source maps are dev-only.
 
 **Fixture replay.** Refuses to run when `NODE_ENV=production` or when
 `API_URL` isn't localhost.
+
+## Migration to Spring Boot
+
+`apps/api` moved from Node/Express to Java 21 + Spring Boot 4. The goal was a
+like-for-like replacement: same routes, same request and response shapes, so
+`apps/web` keeps working. This section records what that cost and where the
+translation is not exactly one-to-one.
+
+### Verification method
+
+Both services were run side by side against the same database and every
+endpoint compared. All 21 GET endpoints returned structurally identical JSON,
+and spot-checked values matched byte for byte. 26 further checks covered the
+mutating endpoints, auth failure modes, CSRF enforcement, refresh-token
+rotation and webhook signature rejection. That comparison is what surfaced the
+two serialization differences below.
+
+Endpoint-level diffing was not sufficient on its own. A second pass drove the
+frontend's own `api.js` and `socket.js` modules — the real files, with browser
+globals shimmed — through the Vite dev proxy against the running service. That
+is what caught the CSRF rotation bug, which only appears across a *sequence* of
+requests and so is invisible when each endpoint is checked in isolation.
+
+### Package by feature, not by layer
+
+`com.meridian.api.<feature>` — `auth`, `pullrequests`, `rules`, `analytics`,
+`webhooks`, and so on, each holding its own controller, service, entity,
+repository and DTOs. Layer-first packaging (`controllers/`, `services/`,
+`repositories/`) would have spread a single change across four directories;
+here the PR feature is one directory. `common/` and `config/` hold the
+genuinely cross-cutting pieces.
+
+### DTOs, and why the JSON shape is pinned explicitly
+
+Entities are never serialized. Every response goes through a record with an
+explicit `@JsonProperty` on each field, because the previous API returned raw
+`pg` rows and the frontend reads those exact snake_case keys — inferring them
+from a naming strategy would have been one silent rename away from a broken
+dashboard.
+
+Two serialization behaviours had to be restored deliberately
+(`config/JacksonConfig.java`):
+
+- **`NUMERIC` serializes as a JSON string.** node-postgres does not parse
+  `NUMERIC` into a JS number (it would lose precision outside the double
+  range), so the old API emitted `"score": "0.524"` and
+  `"risk_threshold": "0.550"`. Jackson would naturally emit numbers. Strings
+  are preserved, scale included.
+- **Timestamps are millisecond-precision ISO-8601.** Postgres stores
+  `TIMESTAMPTZ` at microsecond precision, so Java reads `…054327Z` where
+  node-postgres — parsing into a millisecond JS `Date` — produced `…054Z`.
+  Truncated to match.
+
+Both are pure contract fidelity; the frontend tolerates either form. If the
+contract is ever revised deliberately, `JacksonConfig` is the one place to
+undo them.
+
+### No schema changes
+
+The existing tables map cleanly to JPA entities and nothing was altered.
+Postgres `TEXT[]` columns map to `List<String>` via `@JdbcTypeCode(ARRAY)`;
+the composite primary keys on `file_hotness` and `file_ownership` use
+`@IdClass`. `jsonb` columns are held as raw `String` and passed through with
+`common/RawJson`, which writes them back verbatim — the rule predicates and
+the ML service's `contributions` are open-ended shapes owned elsewhere, and
+round-tripping them through Java types would risk changing them for no gain.
+
+`role` and `tier` became Java enums with an `AttributeConverter` so the stored
+values stay the lowercase strings the `CHECK` constraints already enforce.
+
+### Native SQL is retained where JPQL cannot express the query
+
+The analytics aggregates, the PR list and the reviewer-load query stay as
+native SQL, carried over statement-for-statement. Each depends on something
+JPQL has no equivalent for: the `LEFT JOIN LATERAL … ORDER BY scored_at DESC
+LIMIT 1` that picks each PR's latest score, `date_trunc`, `PERCENTILE_CONT …
+WITHIN GROUP`, `EXTRACT(ISODOW …)`, `unnest` over a `TEXT[]`, and interval
+arithmetic against a column. Keeping the SQL unchanged also means the numbers
+on the dashboard could not drift during the migration. They run through
+`EntityManager` returning `Tuple`, mapped to records by `common/Tuples`.
+
+### Flyway adopts the existing schema
+
+`V1__initial_schema.sql` is a direct translation of the old hand-rolled
+`schema.sql`, `CREATE … IF NOT EXISTS` included, paired with
+`baseline-on-migrate: true`. That lets it apply cleanly to a database the old
+`migrate.js` already provisioned as well as to an empty one. Later versions
+should use plain DDL — Flyway tracks what has run from V1 onward.
+
+### Behaviour changes worth knowing about
+
+**`size_gt` rules now work — a deliberate behaviour change.** The Zod schema
+validated the field as `lines` while the evaluator read `pred.value`, so a
+`size_gt` rule created through the API could never match: it validated, saved,
+showed as enabled in the rules list, and silently never fired. The evaluator now
+reads `lines`, falling back to `value` for any rule written directly against the
+old field name.
+
+> **What changes:** every enabled `size_gt` rule starts escalating PRs whose
+> additions + deletions exceed its `lines` threshold. Those PRs were previously
+> unaffected by the rule, so some will now report a higher tier — and, if the new
+> tier is in `notify_on_tiers`, trigger Slack alerts they did not before.
+
+This was chosen over preserving the bug because a rule that is enabled, saved and
+incapable of matching is a defect, not behaviour worth carrying forward. Contrast
+`regex_match` below, where the opposite call was made for the opposite reason.
+
+**`regex_match` still matches file paths, not `target`.** The schema accepts a
+`target` of `title`/`body`/`diff`, but the evaluator has always tested the
+pattern against file paths and ignored it. That behaviour is preserved rather
+than "fixed", because unlike `size_gt` these rules do fire today and changing
+what they match would alter live scoring. The field remains accepted and
+stored but unused.
+
+**Webhook org resolution is deterministic.** The old query was
+`SELECT org_id FROM repos WHERE full_name=$1 UNION SELECT id FROM orgs LIMIT 1`,
+where the `LIMIT 1` applied to the union — so for an unknown repo the org
+depended on Postgres' row order. It is now: the repo's own org if connected,
+otherwise the oldest org. Same intent, no longer arbitrary.
+
+**Login trims before validating.** The old Zod chain was
+`.trim().toLowerCase().email()`, so `"  Dev@Example.test  "` was accepted.
+`LoginRequest` normalises in its canonical constructor so validation sees the
+trimmed value, preserving that.
+
+**Validation messages differ in wording.** Status codes and the
+`invalid_request: <field>: <message>` envelope match, but the text inside comes
+from Bean Validation rather than Zod. The frontend switches on the `error`
+prefix, not the detail.
+
+**CSRF token rotation had to be suppressed.** Spring attaches
+`CsrfAuthenticationStrategy` to the filter chain, which rotates the CSRF token
+whenever a request authenticates. That suits form login, where authentication
+happens once per session. This API re-authenticates from the JWT on *every*
+request, so it fired every time: the token was deleted and its replacement
+deferred, leaving the `mrd_csrf` cookie alternating between a value and empty on
+successive calls. Roughly half of all dashboard mutations came back 403,
+including logout — intermittently, which is the worst way for it to fail.
+`config/StableCsrfTokenRepository` wraps the cookie repository and ignores the
+delete, so the token lives as long as its cookie and is cleared at exactly one
+point: `AuthCookies.clearAll()` on logout. The CSRF defence is unchanged
+otherwise — still random per browser, still `SameSite=Lax`, still required on
+every mutating request — and with a stateless JWT there is no session to fixate.
+Caught by the browser-path verification, not by the endpoint diff, because it
+only shows up across a *sequence* of requests.
+
+**Scoring concurrency.** The old handler fired scoring with a floating promise.
+It now runs on a bounded executor (`config/AsyncConfig`) with a
+`CallerRunsPolicy`: under a burst the webhook thread does the work itself,
+which throttles at the source rather than growing an unbounded queue.
+
+### Not ported
+
+**The demo dataset seeder.** `npm run db:seed` did two jobs. The admin
+bootstrap — the production-critical half — is ported as
+`admin/BootstrapSeeder`, run with `--seed` or `MERIDIAN_SEED=true`, with the
+same guards (required in prod, 12-character minimum, idempotent). The demo
+fixture dataset is not; `scripts/replay-fixtures.js` populates PR data locally
+instead.
+
+**The weekly digest is still unscheduled.** `digest/DigestService` is a
+faithful port including the HTML template, and like its predecessor it exposes
+`sendWeeklyDigest` for an external trigger. Nothing schedules it.
+
+### Dependency notes
+
+`DATABASE_URL` is accepted in the libpq URI form Render and docker-compose
+emit, converted to JDBC at startup (`config/DatabaseUrl`) so the environment
+variable list did not have to change. Spring Boot 4 splits auto-configuration
+into per-technology modules, which is why the build depends on
+`spring-boot-starter-flyway` and `spring-boot-webmvc-test` explicitly rather
+than getting them transitively.
 
 ## Render deploy config
 
@@ -137,8 +336,11 @@ The Blueprint (`render.yaml`) provisions four resources in one apply:
   The header value (`ML_INTERNAL_SECRET`) is auto-generated on the ml
   service; the api reads the same value via `fromService` binding so
   they can't drift.
-- **`meridian-api`** — Node web service. Runs `node src/db/migrate.js &&
-  node src/index.js` on boot. Health check: `/health/ready`.
+- **`meridian-api`** — Docker web service built from `apps/api/Dockerfile`
+  (Maven build stage, JRE-only runtime, non-root user). Render has no
+  first-class Java runtime, and the image pins both the build JDK and the
+  runtime JRE. Flyway migrates the schema during startup, so there is no
+  separate migration command to orchestrate. Health check: `/health/ready`.
 - **`meridian-web`** — Vite static site. Reads `VITE_API_BASE` at
   **build** time; the same-origin `/api` proxy pattern only works in dev.
 
@@ -152,6 +354,10 @@ Secrets generated by Render (`JWT_SECRET`, `GITHUB_WEBHOOK_SECRET`,
 repo. Every "you supply" value (`GITHUB_CLIENT_*`, CORS origins, admin
 bootstrap creds, the ml service URL) uses `sync: false` — Render's
 dashboard prompts for each on first Blueprint apply.
+
+The admin bootstrap is a one-off: `ADMIN_EMAIL` / `ADMIN_PASSWORD` are read
+only when the service is started with `--seed`, so ordinary deploys never
+touch user records.
 
 ## Visual design — palette anchored on #035BD6
 

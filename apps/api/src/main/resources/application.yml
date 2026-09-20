@@ -1,0 +1,147 @@
+# =============================================================================
+# Meridian API — base configuration.
+#
+# Every value below is driven by the same environment variables the previous
+# Node service used, so an existing Render / .env environment carries over
+# unchanged. Profile-specific overrides live in application-dev.yml and
+# application-prod.yml; the active profile follows SPRING_PROFILES_ACTIVE,
+# defaulting to `dev`.
+# =============================================================================
+
+spring:
+  application:
+    name: meridian-api
+  profiles:
+    default: dev
+
+  datasource:
+    # DATABASE_URL is accepted in either the JDBC form or the libpq/URI form
+    # (postgres://user:pass@host:port/db) the Node service used; DatabaseUrlEnvironmentPostProcessor
+    # normalises the latter before Spring sees it.
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/meridian}
+    username: ${DATABASE_USERNAME:meridian}
+    password: ${DATABASE_PASSWORD:meridian}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      idle-timeout: ${DB_POOL_IDLE_MS:30000}
+      connection-timeout: 10000
+      pool-name: meridian-pool
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema. Hibernate never mutates it.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # V1 is written with CREATE ... IF NOT EXISTS so it can adopt a database
+    # the old hand-rolled migrate.js already provisioned.
+    baseline-on-migrate: true
+    baseline-version: 0
+
+  jackson:
+    # `always` keeps null fields present in responses. The previous service returned raw database
+    # rows, so a null column showed up as an explicit null — dropping the key instead would change
+    # the response shape.
+    default-property-inclusion: always
+    serialization:
+      fail-on-empty-beans: false
+    deserialization:
+      # Webhook payloads and ML responses carry fields this service does not model; rejecting them
+      # would make it brittle against upstream additions.
+      fail-on-unknown-properties: false
+    datetime:
+      # Timestamps go out as ISO-8601 strings ("2026-09-20T06:12:33.123Z"), matching what
+      # JSON.stringify produced for a JS Date. Jackson 3 defaults this way, but it is set
+      # explicitly because the frontend parses these directly.
+      write-dates-as-timestamps: false
+
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${PORT:4000}
+  shutdown: graceful
+  error:
+    whitelabel:
+      enabled: false
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
+
+# Actuator is used only for its health infrastructure; the public probes are
+# served by HealthController at /health, /health/live and /health/ready so the
+# response bodies match what the previous service emitted.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+      base-path: /actuator
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+logging:
+  level:
+    root: ${LOG_LEVEL:info}
+    com.meridian.api: ${LOG_LEVEL:info}
+    org.hibernate.SQL: warn
+
+# --- Application settings ----------------------------------------------------
+# Mirrors the previous src/utils/env.js config object one key at a time.
+meridian:
+  web-origin: ${WEB_ORIGIN:http://localhost:5173}
+  # Comma-separated. Defaults to web-origin. Never a wildcard.
+  allowed-origins: ${ALLOWED_ORIGINS:}
+  trust-proxy: ${TRUST_PROXY:false}
+
+  jwt:
+    secret: ${JWT_SECRET:}
+    access-ttl: ${JWT_ACCESS_TTL:15m}
+    refresh-ttl-days: ${JWT_REFRESH_TTL_DAYS:30}
+    issuer: meridian
+    audience: meridian-web
+
+  bcrypt-cost: ${BCRYPT_COST:12}
+
+  ml:
+    service-url: ${ML_SERVICE_URL:http://localhost:8000}
+    internal-secret: ${ML_INTERNAL_SECRET:}
+    timeout-ms: 5000
+
+  github:
+    client-id: ${GITHUB_CLIENT_ID:}
+    client-secret: ${GITHUB_CLIENT_SECRET:}
+    oauth-callback: ${GITHUB_OAUTH_CALLBACK:}
+    webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+    app-id: ${GITHUB_APP_ID:}
+    # Dev-only escape hatch for local fixture replay. Forced to false outside
+    # the dev profile by StartupChecks — webhook verification is never bypassed
+    # in production.
+    allow-unsigned-webhooks: ${ALLOW_UNSIGNED_WEBHOOKS:false}
+
+  slack:
+    webhook-url: ${SLACK_WEBHOOK_URL:}
+
+  email:
+    provider: ${EMAIL_PROVIDER:}
+    from: ${EMAIL_FROM:}
+    resend-key: ${RESEND_API_KEY:}
+
+  rate-limit:
+    auth-window-ms: ${RATE_LIMIT_AUTH_WINDOW_MS:900000}
+    auth-max: ${RATE_LIMIT_AUTH_MAX:10}
+    api-window-ms: ${RATE_LIMIT_API_WINDOW_MS:60000}
+    api-max: ${RATE_LIMIT_API_MAX:300}

@@ -6,6 +6,12 @@ __pycache__/
 dist/
 build/
 
+# Java / Maven build output
+target/
+*.class
+.mvn/
+!.mvn/wrapper/maven-wrapper.properties
+
 # All env files except the checked-in templates.
 .env
 .env.*

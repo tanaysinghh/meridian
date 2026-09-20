@@ -13,7 +13,8 @@ Meridian ships four things:
 - **meridian-ml**  — FastAPI risk scorer (public web service, gated by a
   shared-secret `X-Internal-Secret` header — Render free tier does not
   support private services, so we authenticate at the app layer instead).
-- **meridian-api** — Node/Express + Socket.IO backend (public).
+- **meridian-api** — Java 21 / Spring Boot backend, built from a Dockerfile
+  (public). REST plus STOMP-over-WebSocket.
 - **meridian-web** — Vite React static site (public).
 
 The Blueprint file `render.yaml` in the repo root defines all four so you can
@@ -25,7 +26,7 @@ provision them in one go.
 
 - Render account (free tier is fine to try; upgrade `api`/`db` to Starter for
   anything real — free web services spin down after inactivity and will drop
-  your Socket.IO connections).
+  your realtime WebSocket connections).
 - The Meridian repo pushed to a GitHub org Render can read.
 - (Optional but recommended) A GitHub App created for Meridian ahead of time,
   so you have `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_APP_ID`
@@ -105,24 +106,29 @@ when you save it. Wait for the build to finish before testing.
   `{"ok": true, "status": "ready"}`. If it 503s, the api can't reach the DB
   (check the `DATABASE_URL` binding on the api's env vars).
 - Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` you set. If it works, the
-  first-run migrate + seed did what it was supposed to.
+  first-run migration did what it was supposed to.
 
-### Manual seed (only if needed)
+### Bootstrap the admin user (one-off)
 
-The api's start command runs migrations automatically. Seeding runs on first
-boot too, but if you ever need to re-seed the admin or drop demo data, use
-the Render **Shell** on the api service:
+Flyway migrates the schema automatically during startup, so there is no
+migration step to run. Creating the first org and admin user is a separate,
+explicit action — ordinary deploys never touch user records.
+
+Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` (12+ characters) on the api service,
+then from the Render **Shell**:
 
 ```bash
-# Re-seed admin only
-node src/db/seed.js
-
-# Seed demo/Acme dataset (refuses without the explicit env flag in prod)
-FORCE_DEMO_SEED=yes node src/db/seed.js --demo
+java -jar /app/meridian-api.jar --seed
 ```
 
-`db:migrate` alone is idempotent (the schema uses `CREATE ... IF NOT EXISTS`
-throughout), so re-runs are safe.
+It is idempotent: re-running updates the admin's password and name rather
+than creating a duplicate. Under the prod profile it refuses to run without
+both variables set — it will not invent a default administrator.
+
+Clear `ADMIN_PASSWORD` from the service env once the account exists.
+
+The demo dataset the old Node seeder could also load was not carried over;
+see `DECISIONS.md § Migration to Spring Boot`.
 
 ---
 
@@ -135,7 +141,7 @@ In your GitHub App:
   minimum.
 
 Install the app on a test repo. Open a PR — the dashboard should light up
-within a few seconds (Socket.IO push) with a scored PR row.
+within a few seconds (realtime push) with a scored PR row.
 
 ---
 
@@ -154,7 +160,7 @@ within a few seconds (Socket.IO push) with a scored PR row.
     3. **Apply the Blueprint from a separate Render workspace** — a fresh
        workspace has its own free-tier quota.
 - **Spin-down**: free web services sleep after 15 minutes of no traffic.
-  When the api sleeps, Socket.IO drops and the first request after a
+  When the api sleeps, the WebSocket drops and the first request after a
   sleep takes ~30s. `meridian-ml` is also a free web service (free tier
   has no `pserv`), so it sleeps too and the first scoring request after
   idle will be slow. The api's `scorePR` already falls back to a
@@ -191,6 +197,6 @@ If you want `app.yourcompany.com` instead of the `.onrender.com` URLs:
 | Web loads but every API call is CORS-blocked | `ALLOWED_ORIGINS` on api doesn't include the exact web origin (scheme + host, no path) |
 | GitHub sign-in button 503s | GitHub App creds not set on api — this is intentional (no silent fallback). Set them or ignore. |
 | `/health/ready` returns `db_unreachable` | `DATABASE_URL` binding broken, or DB is still provisioning. Redeploy api after the DB shows "Available." |
-| Socket.IO won't connect in prod | `VITE_API_BASE` wasn't set at web build time. Change it in the web service env and trigger a rebuild. |
+| Realtime WebSocket won't connect in prod | `VITE_API_BASE` wasn't set at web build time. Change it in the web service env and trigger a rebuild. |
 | Webhook returns 401 | `GITHUB_WEBHOOK_SECRET` in the api env doesn't match the value in your GitHub App's webhook config. |
 | ML service returns 503 on first call after idle | Free tier cold start. Upgrade `meridian-ml` to Starter to keep it warm. |

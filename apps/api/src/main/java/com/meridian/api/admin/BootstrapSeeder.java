@@ -1,0 +1,132 @@
+package com.meridian.api.admin;
+
+import com.meridian.api.orgs.Org;
+import com.meridian.api.orgs.OrgRepository;
+import com.meridian.api.orgs.OrgSettings;
+import com.meridian.api.orgs.OrgSettingsRepository;
+import com.meridian.api.users.Role;
+import com.meridian.api.users.User;
+import com.meridian.api.users.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.env.Environment;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Optional;
+
+/**
+ * Creates the first org and its admin user.
+ *
+ * <p>Successor to the bootstrap half of the old {@code npm run db:seed}. It runs only when asked —
+ * pass {@code --seed} on the command line or set {@code MERIDIAN_SEED=true} — so an ordinary boot
+ * never touches user data. It is idempotent: re-running updates the admin's password and name
+ * rather than failing or creating a duplicate.
+ *
+ * <p>The guards from the original script are kept, because this is the one code path that creates
+ * a credential:
+ * <ul>
+ *   <li>In production, {@code ADMIN_EMAIL} and {@code ADMIN_PASSWORD} are required — it refuses to
+ *       invent a default administrator.</li>
+ *   <li>{@code ADMIN_PASSWORD} must be at least 12 characters, in every environment.</li>
+ * </ul>
+ *
+ * <p>The demo dataset the old script could also load is not ported; see DECISIONS.md.
+ */
+@Component
+public class BootstrapSeeder implements ApplicationRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(BootstrapSeeder.class);
+
+    private static final int MIN_PASSWORD_LENGTH = 12;
+
+    private final OrgRepository orgs;
+    private final OrgSettingsRepository orgSettings;
+    private final UserRepository users;
+    private final PasswordEncoder passwordEncoder;
+    private final Environment env;
+
+    public BootstrapSeeder(OrgRepository orgs,
+                           OrgSettingsRepository orgSettings,
+                           UserRepository users,
+                           PasswordEncoder passwordEncoder,
+                           Environment env) {
+        this.orgs = orgs;
+        this.orgSettings = orgSettings;
+        this.users = users;
+        this.passwordEncoder = passwordEncoder;
+        this.env = env;
+    }
+
+    @Override
+    public void run(ApplicationArguments args) {
+        boolean requested = args.containsOption("seed")
+                || Boolean.parseBoolean(env.getProperty("MERIDIAN_SEED", "false"));
+        if (!requested) {
+            return;
+        }
+        seed();
+    }
+
+    @Transactional
+    public void seed() {
+        boolean prod = Arrays.asList(env.getActiveProfiles()).contains("prod");
+
+        String adminEmail = Optional.ofNullable(env.getProperty("ADMIN_EMAIL"))
+                .map(e -> e.trim().toLowerCase(Locale.ROOT))
+                .orElse("");
+        String adminPassword = Optional.ofNullable(env.getProperty("ADMIN_PASSWORD")).orElse("");
+
+        if (adminEmail.isBlank() || adminPassword.isBlank()) {
+            if (prod) {
+                throw new IllegalStateException(
+                        "[seed] ADMIN_EMAIL and ADMIN_PASSWORD are required in production");
+            }
+            log.warn("[seed] ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping admin bootstrap");
+            return;
+        }
+        if (adminPassword.length() < MIN_PASSWORD_LENGTH) {
+            throw new IllegalStateException(
+                    "[seed] ADMIN_PASSWORD must be at least " + MIN_PASSWORD_LENGTH + " characters");
+        }
+
+        String orgName = env.getProperty("ORG_NAME", "Meridian");
+        String orgSlug = env.getProperty("ORG_SLUG", "meridian");
+        String adminName = env.getProperty("ADMIN_NAME", "Admin");
+        String githubLogin = env.getProperty("ADMIN_GITHUB_LOGIN");
+
+        Org org = orgs.findBySlug(orgSlug)
+                .map(existing -> {
+                    existing.setName(orgName);
+                    return existing;
+                })
+                .orElseGet(() -> new Org(orgName, orgSlug));
+        org = orgs.save(org);
+
+        if (orgSettings.findById(org.getId()).isEmpty()) {
+            orgSettings.save(new OrgSettings(org.getId()));
+        }
+
+        final Org target = org;
+        User admin = users.findByEmail(adminEmail)
+                .orElseGet(() -> new User(target.getId(), adminEmail, Role.ADMIN));
+        admin.setName(adminName);
+        admin.setRole(Role.ADMIN);
+        admin.setPasswordHash(passwordEncoder.encode(adminPassword));
+        if (githubLogin != null && !githubLogin.isBlank()) {
+            admin.setGithubLogin(githubLogin);
+        }
+        if (admin.getOrgId() == null) {
+            admin.setOrgId(target.getId());
+        }
+        users.save(admin);
+
+        // The password is never logged, only the fact that it was set.
+        log.info("[seed] admin bootstrapped: {} (org: {})", adminEmail, orgSlug);
+    }
+}

@@ -4,7 +4,8 @@
 #   - meridian-db   → managed Postgres (private)
 #   - meridian-ml   → FastAPI risk-scoring microservice (public web service,
 #                     but every /score request requires a shared-secret header)
-#   - meridian-api  → Node/Express + Socket.IO backend (public web service)
+#   - meridian-api  → Java 21 / Spring Boot backend, built from a Dockerfile
+#                     (public web service; REST + STOMP-over-WebSocket)
 #   - meridian-web  → Vite static site (public)
 #
 # Render's free tier does not support private services (type: pserv), so the
@@ -13,11 +14,15 @@
 # ML_INTERNAL_SECRET. The api sends it automatically; anyone else gets a 401.
 # See DECISIONS.md for the tradeoff.
 #
+# Schema migrations run automatically: Flyway applies them during the api's
+# startup, before it begins serving, so there is no separate migration step.
+#
 # Manual steps (see RENDER_DEPLOY.md):
 #   1. After first deploy, copy the *.onrender.com URLs Render assigned and
 #      update WEB_ORIGIN / ALLOWED_ORIGINS (on api) and VITE_API_BASE (on web).
 #   2. Wire GitHub App credentials via the dashboard for the api service.
-#   3. Run migrations once from the Render Shell (see RENDER_DEPLOY.md).
+#   3. Bootstrap the first admin once — set ADMIN_EMAIL / ADMIN_PASSWORD and run
+#      the api with `--seed` from the Render Shell (see RENDER_DEPLOY.md).
 
 databases:
   - name: meridian-db
@@ -64,25 +69,26 @@ services:
         generateValue: true
 
   # ---------------------------------------------------------------------------
-  # API — Node/Express + Socket.IO, PUBLIC
+  # API — Java 21 / Spring Boot, PUBLIC
   # ---------------------------------------------------------------------------
+  # Runs from a Dockerfile rather than a native runtime: Render has no first-class
+  # Java runtime, and the image pins the JDK used to build and the JRE used to run.
+  # See apps/api/Dockerfile.
   - type: web
     name: meridian-api
-    runtime: node
+    runtime: docker
     plan: free                # bump to `starter`+ for prod (avoids cold spin-down)
-    rootDir: apps/api
-    buildCommand: npm ci
-    # Run migrations first, then boot. Schema is idempotent (CREATE ... IF NOT EXISTS).
-    startCommand: node src/db/migrate.js && node src/index.js
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
     autoDeploy: true
     healthCheckPath: /health/ready
     envVars:
-      - key: NODE_VERSION
-        value: 20.11.1
-      - key: NODE_ENV
-        value: production
+      # Selects application-prod.yml, which enables secure cookies, forwarded-header
+      # handling and the fail-fast secret checks.
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
       - key: PORT
-        value: 10000            # Render default; the app reads process.env.PORT
+        value: 10000            # Render default; bound to server.port
       - key: TRUST_PROXY
         value: "true"
       - key: LOG_LEVEL
@@ -135,7 +141,10 @@ services:
       - key: GITHUB_WEBHOOK_SECRET
         generateValue: true       # then paste the generated value into GitHub App config
 
-      # === Admin bootstrap (used by db:seed on first run) ===
+      # === Admin bootstrap ===
+      # Read only when the service is started with `--seed` (or MERIDIAN_SEED=true),
+      # which creates the first org and admin user. Ordinary boots ignore them.
+      # See RENDER_DEPLOY.md for the one-off bootstrap run.
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD
@@ -157,11 +166,10 @@ services:
       - key: RATE_LIMIT_API_MAX
         value: "300"
 
-      # Never enable these in prod. Kept explicit so it can't drift.
+      # Never enable this in prod. Kept explicit so it can't drift — and the app
+      # refuses to start under the prod profile if it is ever set true.
       - key: ALLOW_UNSIGNED_WEBHOOKS
         value: "false"
-      - key: FORCE_DEMO_SEED
-        value: "no"
 
   # ---------------------------------------------------------------------------
   # WEB — Vite static site, PUBLIC

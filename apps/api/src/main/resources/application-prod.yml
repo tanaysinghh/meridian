@@ -1,0 +1,30 @@
+# Production profile.
+#
+# Everything the old env.js enforced when NODE_ENV=production is enforced here,
+# either by these defaults or by StartupChecks (which fails the boot outright
+# on a missing JWT_SECRET / DATABASE_URL / GITHUB_WEBHOOK_SECRET).
+
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+
+logging:
+  level:
+    root: ${LOG_LEVEL:info}
+    com.meridian.api: ${LOG_LEVEL:info}
+
+server:
+  # Behind Render's ingress; honour X-Forwarded-* so rate-limit client IPs and
+  # secure-cookie detection are correct. Equivalent to `app.set('trust proxy', 1)`.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:framework}
+
+meridian:
+  cookie-secure: true
+  trust-proxy: ${TRUST_PROXY:true}
+  expose-error-details: false
+  # No fallback — absence is a boot failure, not a default.
+  jwt:
+    secret: ${JWT_SECRET:}
+  github:
+    allow-unsigned-webhooks: false

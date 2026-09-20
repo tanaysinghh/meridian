@@ -16,8 +16,8 @@ automatically (`generateValue: true` in `render.yaml`).
 
 ## Bootstrap admin user
 
-The seed script (`npm run db:seed`) creates the org row and one admin user
-from these env vars — required in production:
+Starting the api with `--seed` creates the org row and one admin user from
+these env vars — required in production:
 
 ```
 ADMIN_EMAIL=you@yourdomain.com
@@ -28,16 +28,20 @@ ORG_NAME=Meridian
 ORG_SLUG=meridian
 ```
 
-Run once against your production DB:
+Flyway applies the schema during startup, so there is nothing to migrate by
+hand. Run the bootstrap once against your production deployment:
 
 ```bash
-NODE_ENV=production npm run db:migrate
-NODE_ENV=production npm run db:seed
+SPRING_PROFILES_ACTIVE=prod java -jar meridian-api.jar --seed
 ```
 
-The demo dataset (`npm run db:seed:demo`) refuses to load in production
-unless `FORCE_DEMO_SEED=yes`. Don't use it against a real deployment — it
-generates random passwords per run and prints them to stdout once.
+It is idempotent — re-running updates the admin's password and name rather
+than creating a duplicate — and refuses to run in production without both
+`ADMIN_EMAIL` and `ADMIN_PASSWORD`. Clear `ADMIN_PASSWORD` from the
+environment once the account exists.
+
+The demo dataset the old Node seeder could also load was not carried over;
+see `DECISIONS.md § Migration to Spring Boot`.
 
 ## GitHub App / webhooks
 
@@ -95,11 +99,13 @@ back to writing HTML files into `apps/api/outbox/`.
 ## Production DB
 
 Point `DATABASE_URL` at managed Postgres (Neon, Supabase, RDS, Render
-Postgres). Set `DATABASE_SSL=true`. Run `NODE_ENV=production npm run
-db:migrate` against it; the schema is idempotent, safe to re-run.
+Postgres); either the `postgres://user:pass@host:port/db` form or a
+`jdbc:postgresql://…` URL works. Set `DATABASE_SSL=true`.
 
-Never run `npm run db:reset` against production — it refuses without
-`CONFIRM_RESET=yes` for exactly this reason.
+Flyway migrates on startup and records what it has applied in
+`flyway_schema_history`, so deploys are safe to repeat. Against a database
+the old Node service already provisioned, `baseline-on-migrate` adopts the
+existing schema rather than trying to recreate it.
 
 ## Behind a proxy / load balancer
 

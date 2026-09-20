@@ -8,9 +8,9 @@ surfaces the ones most likely to cause a revert, hotfix, or incident.
 
 - Ranked dashboard of open PRs with a per-PR risk tier
   (`low` / `medium` / `high` / `critical`) and the top contributing signals.
-- Rules engine (per-repo, JSON-defined, Zod-validated) that can escalate
+- Rules engine (per-repo, JSON-defined, validated on write) that can escalate
   tiers on top of the model — never de-escalate.
-- Realtime updates over Socket.IO to the dashboard.
+- Realtime updates pushed to the dashboard over STOMP/WebSocket.
 - Reviewer suggestions based on file ownership + hot-file overlap.
 - Incident log with links back to the PRs that likely caused each one, to
   close the feedback loop on model training.
@@ -18,15 +18,20 @@ surfaces the ones most likely to cause a revert, hotfix, or incident.
 
 ## Tech stack
 
-| service      | stack                          | port  |
-|--------------|--------------------------------|-------|
-| `apps/api`   | Node · Express · Postgres 16   | 4000  |
-| `apps/web`   | React 18 · Vite · Tailwind     | 5173  |
-| `apps/ml`    | FastAPI · LightGBM · scikit    | 8000  |
+| service      | stack                                        | port  |
+|--------------|----------------------------------------------|-------|
+| `apps/api`   | Java 21 · Spring Boot 4 · Postgres 16         | 4000  |
+| `apps/web`   | React 18 · Vite · Tailwind                    | 5173  |
+| `apps/ml`    | FastAPI · LightGBM · scikit                   | 8000  |
+
+`apps/api` in detail: Spring MVC for the REST layer, Spring Data JPA +
+Hibernate over Postgres, Flyway for schema migrations, and Spring Security
+for auth and the security headers. Built and deployed as a Docker image.
 
 - Auth: email + password (bcrypt cost 12) with JWT in httpOnly cookies,
   plus GitHub OAuth. CSRF via double-submit tokens.
-- Realtime: Socket.IO `/live` namespace, rooms per org.
+- Realtime: STOMP over WebSocket at `/live`, one topic per org
+  (`/topic/org.{orgId}`).
 - Explainability: SHAP-lite contributions returned inline with every score.
 - Fallback: if the ML service is unreachable, the API degrades to a
   rule-only score so ingestion doesn't stall.
@@ -39,18 +44,26 @@ Full architectural notes live in [`DECISIONS.md`](DECISIONS.md).
 # 1. Postgres via docker-compose
 docker compose up -d db
 
-# 2. API
+# 2. API  (needs JDK 21 — `java -version` should report 21.x)
 cd apps/api
 cp .env.example .env
 #   → set at minimum:
 #       JWT_SECRET     (32+ random chars)
 #       ADMIN_EMAIL, ADMIN_PASSWORD  (bootstrap admin, 12+ chars)
 #       ALLOW_UNSIGNED_WEBHOOKS=true (only if you want to run the fixture replay)
-npm install
-npm run db:migrate
-npm run db:seed              # creates the org + your admin user
-npm run db:seed:demo         # optional — loads the Acme demo dataset
-npm run dev                  # http://localhost:4000
+
+# Spring reads the process environment, not .env, so export it first.
+# bash/zsh:
+set -a && . ./.env && set +a
+# PowerShell:
+#   Get-Content .env | Where-Object {$_ -match '^\s*[^#]\w*='} |
+#     ForEach-Object { $k,$v = $_ -split '=',2; [Environment]::SetEnvironmentVariable($k,$v) }
+
+# Flyway applies the schema automatically on startup — no separate migrate step.
+mvn spring-boot:run                       # http://localhost:4000
+
+# One-off, to create the first org + admin user:
+mvn spring-boot:run -Dspring-boot.run.arguments=--seed
 
 # 3. ML service
 cd apps/ml
@@ -65,9 +78,25 @@ npm run dev                  # http://localhost:5173
 ```
 
 Sign in at http://localhost:5173/login with the admin credentials you set
-in `.env`. If you ran `db:seed:demo`, generated passwords for the demo
-users are printed to the seed script's stdout — capture them from that
-log; they are not stored anywhere else.
+in `.env` and bootstrapped with `--seed`.
+
+### Running the API's tests
+
+```bash
+cd apps/api && mvn test
+```
+
+No database or Docker required — the suite is unit tests plus MockMvc
+slices covering auth, the PR risk-scoring endpoints, webhook signature
+verification, the rules engine, and the ML fallback scorer.
+
+### Building the API image
+
+```bash
+cd apps/api && docker build -t meridian-api .
+```
+
+This is the same Dockerfile Render builds from.
 
 ### Replaying webhook fixtures (dev only)
 
@@ -83,7 +112,9 @@ points at a non-localhost host (unless `FORCE=yes`).
 
 ```bash
 cd apps/web && npm run build          # emits dist/, ready to serve behind a CDN
-cd apps/api && NODE_ENV=production node src/index.js
+
+cd apps/api && mvn clean package      # emits target/meridian-api-<version>.jar
+SPRING_PROFILES_ACTIVE=prod java -jar target/meridian-api-0.1.0.jar
 ```
 
 ## Deployment
@@ -102,7 +133,7 @@ workspace) — see `RENDER_DEPLOY.md § 5` for the options. Nothing in the
 codebase needs to change.
 
 External hosts other than Render work fine — the API and ML services are
-plain Node / Python and don't depend on Render primitives.
+a plain Docker image / Python app and don't depend on Render primitives.
 
 ## Known limitations / next steps
 
@@ -128,6 +159,11 @@ The pieces that are stubbed out or deferred, in rough priority order:
 - **ML model trained on synthetic labels.** Once real `pr_outcomes` data
   accumulates (the nightly post-merge job populates it), retrain on
   actual reverts/hotfixes rather than the seed distribution.
+- **Demo dataset seeding not ported.** The old `npm run db:seed:demo`
+  loaded a sample org with PRs, rules and hotness data. The admin
+  bootstrap it also did *was* ported (`--seed`); the demo fixtures were
+  not. Use `scripts/replay-fixtures.js` to populate PR data locally.
+  See `DECISIONS.md § Migration to Spring Boot`.
 
 ## More docs
 
