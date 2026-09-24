@@ -136,6 +136,14 @@ apply. Step-by-step walkthrough in [`RENDER_DEPLOY.md`](RENDER_DEPLOY.md).
 | `meridian-ml`  | https://meridian-ml.onrender.com |
 | `meridian-db`  | Render managed Postgres 15 (private) |
 
+Signing in: the production database is seeded with the demo dataset (four
+repos, eight scored pull requests, three rules, file hotness and ownership,
+one linked incident) attached to the `acme` org. Sign in as the bootstrap
+admin `demo@meridian.dev`; the password is whatever `ADMIN_PASSWORD` was set
+to on `meridian-api` and is deliberately not recorded in this repo. The
+seeding env vars (`MERIDIAN_SEED_DEMO`, `FORCE_DEMO_SEED`, `ADMIN_PASSWORD`)
+were cleared after the data landed, so a restart will not re-seed.
+
 All four run on Render's free tier, which **spins services down after
 inactivity** — the first request after an idle period can take 50–110
 seconds while the container wakes. That is the plan, not a fault. Upgrade
@@ -192,11 +200,11 @@ The pieces that are stubbed out or deferred, in rough priority order:
   the same non-existent fields); closing it means an extra
   `GET /repos/{owner}/{repo}/pulls/{n}/files` during ingestion, which needs
   no permission beyond the Pull requests read already granted.
-- **Demo dataset seeding not ported.** The old `npm run db:seed:demo`
-  loaded a sample org with PRs, rules and hotness data. The admin
-  bootstrap it also did *was* ported (`--seed`); the demo fixtures were
-  not. Use `scripts/replay-fixtures.js` to populate PR data locally.
-  See `DECISIONS.md § Migration to Spring Boot`.
+- **Demo users cannot sign in.** The ported demo dataset creates four
+  authors (Priya, Marcus, Dana, Sam) with no password hash, so they exist
+  for authorship, review-load and ownership purposes only. The admin
+  account from `--seed` is the single way in. Deliberate — see
+  `DECISIONS.md § Migration to Spring Boot`.
 
 ## More docs
 

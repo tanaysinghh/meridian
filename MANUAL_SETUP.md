@@ -40,15 +40,36 @@ than creating a duplicate — and refuses to run in production without both
 `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Clear `ADMIN_PASSWORD` from the
 environment once the account exists.
 
-The demo dataset the old Node seeder could also load was not carried over;
-see `DECISIONS.md § Migration to Spring Boot`.
+### Demo dataset
+
+`--seed-demo` (or `MERIDIAN_SEED_DEMO=true`) additionally loads the sample
+Acme dataset the old Node `db:seed:demo` script produced — four repos, eight
+pull requests with scores and factors, three rules, file hotness and
+ownership, and one sev2 incident linked to a PR. It attaches to whatever org
+`--seed` just bootstrapped, and clears its own rows first, so re-running
+replaces rather than duplicates.
+
+Under the `prod` profile it refuses to run unless `FORCE_DEMO_SEED=yes` is
+also set — demo data in a real tenant's database is not a mistake you want
+to make by leaving an env var behind. Unset both once the data has landed.
+
+The demo *users* it creates (Priya, Marcus, Dana, Sam) have no password
+hash, so they cannot sign in; they exist to make authorship, review load and
+ownership look real. Sign in as the `ADMIN_EMAIL` account above.
 
 ## GitHub App / webhooks
 
+The app backing the live deployment is `meridian-tanaysinghh` (App ID
+`5059654`, Client ID `Iv23licnOWMduaim78gC`). It is **not installed on any
+repository**, so no webhook deliveries actually arrive in production — OAuth
+sign-in is the only part of it exercised today. To create your own:
+
 1. Create a GitHub App at https://github.com/settings/apps/new.
-2. Webhook URL: `https://<your-api-host>/webhooks/github`.
+2. Webhook URL: `https://<your-api-host>/webhooks/github`
+   (live: `https://meridian-api-il0f.onrender.com/webhooks/github`).
 3. Callback URL: `https://<your-api-host>/auth/github/callback` — must match
-   `GITHUB_OAUTH_CALLBACK` exactly.
+   `GITHUB_OAUTH_CALLBACK` exactly
+   (live: `https://meridian-api-il0f.onrender.com/auth/github/callback`).
 4. Subscribe to exactly two events: **Pull request** and **Pull request
    review**. `GithubWebhookController` handles only these; every other event
    is acknowledged and dropped.
@@ -70,6 +91,9 @@ see `DECISIONS.md § Migration to Spring Boot`.
    GITHUB_CLIENT_SECRET=...
    GITHUB_OAUTH_CALLBACK=https://<your-api-host>/auth/github/callback
    ```
+   Receiving real deliveries also needs the app **installed** on a
+   repository (app settings → Install App). Creating the app alone is
+   enough for OAuth sign-in but not for ingestion.
    A GitHub App private key is only needed for server-to-server (installation
    token) calls, which this service does not make — it uses the webhook
    signature for ingestion and a user-to-server token for OAuth. There is no
@@ -121,6 +145,31 @@ Flyway migrates on startup and records what it has applied in
 `flyway_schema_history`, so deploys are safe to repeat. Against a database
 the old Node service already provisioned, `baseline-on-migrate` adopts the
 existing schema rather than trying to recreate it.
+
+## Split-origin deployments
+
+If the SPA and the API answer on two different *sites* — not just two
+origins — the auth and CSRF cookies become third-party cookies and browsers
+drop them. `app.co` / `api.app.co` are fine; `meridian-web-x.onrender.com`
+and `meridian-api-y.onrender.com` are not, because `onrender.com` is on the
+Public Suffix List and each subdomain is therefore its own site.
+
+The `prod` profile already handles this: `application-prod.yml` pins
+`cookie-secure: true` and defaults `cookie-same-site` to `None`, which is
+what the `.onrender.com` deployment needs. `COOKIE_SAME_SITE` is the
+override, and the only reason to set it is to tighten back to `Lax` once
+both services sit under one apex on a custom domain:
+
+```
+COOKIE_SAME_SITE=Lax      # only when web and api share a site
+```
+
+The client half matters too: the CSRF token is published in an
+`X-CSRF-Token` response header (and exposed via
+`Access-Control-Expose-Headers`) precisely because the SPA cannot read the
+API's cookie across sites. Both halves are needed; either alone leaves
+login returning 403 or every authenticated call returning 401. Reasoning
+and the tradeoff are in `DECISIONS.md § Split-origin cookies`.
 
 ## Behind a proxy / load balancer
 

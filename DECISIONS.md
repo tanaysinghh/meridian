@@ -304,16 +304,38 @@ which throttles at the source rather than growing an unbounded queue.
 
 ### Not ported
 
-**The demo dataset seeder.** `npm run db:seed` did two jobs. The admin
-bootstrap — the production-critical half — is ported as
-`admin/BootstrapSeeder`, run with `--seed` or `MERIDIAN_SEED=true`, with the
-same guards (required in prod, 12-character minimum, idempotent). The demo
-fixture dataset is not; `scripts/replay-fixtures.js` populates PR data locally
-instead.
-
-**The weekly digest is still unscheduled.** `digest/DigestService` is a
-faithful port including the HTML template, and like its predecessor it exposes
+**The weekly digest schedule.** `digest/DigestService` is a faithful port
+including the HTML template, and like its predecessor it exposes
 `sendWeeklyDigest` for an external trigger. Nothing schedules it.
+
+### The demo dataset seeder
+
+`npm run db:seed` did two jobs, and both are now ported. The admin bootstrap
+— the production-critical half — is `admin/BootstrapSeeder`, run with
+`--seed` or `MERIDIAN_SEED=true`, with the same guards as before (required in
+prod, 12-character minimum, idempotent). The sample dataset is
+`admin/DemoDataSeeder`, run with `--seed-demo` or `MERIDIAN_SEED_DEMO=true`,
+and reproduces the Node fixture: four repos, eight pull requests with scores
+and factor breakdowns, three rules, file hotness and ownership rows, and one
+sev2 incident linked to a PR.
+
+It was deferred during the migration and added later, when the production
+deployment needed something for a dashboard to render. Two departures from
+the Node original:
+
+- **The demo users have no password hash.** The Node script gave them
+  `demo1234`, which is exactly the kind of shared weak credential the
+  hardening pass removed elsewhere. Here they exist only as authorship,
+  review-load and ownership data; the bootstrap admin is the only account
+  that can sign in.
+- **It refuses to run under the `prod` profile** unless `FORCE_DEMO_SEED=yes`
+  is also set. Seeding a real tenant's database with fake incidents because
+  an env var was left behind is not a recoverable mistake. The escape hatch
+  is deliberately a second variable rather than a flag on the first, so it
+  cannot happen by copying one line.
+
+It clears its own rows before inserting, so re-running replaces rather than
+duplicating.
 
 ### Dependency notes
 
