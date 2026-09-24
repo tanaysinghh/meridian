@@ -127,8 +127,28 @@ both variables set — it will not invent a default administrator.
 
 Clear `ADMIN_PASSWORD` from the service env once the account exists.
 
-The demo dataset the old Node seeder could also load was not carried over;
-see `DECISIONS.md § Migration to Spring Boot`.
+### Loading the demo dataset
+
+`--seed-demo` additionally loads the sample Acme dataset — four repos, eight
+pull requests across the risk tiers, escalation rules, an incident linked to
+the PR that caused it, and the file hotness / ownership tables behind reviewer
+suggestions. It attaches everything to the bootstrapped org, so the admin
+account and the data always share a tenant.
+
+Without shell access, drive it from the Environment tab instead:
+
+```
+MERIDIAN_SEED_DEMO=true
+FORCE_DEMO_SEED=yes
+```
+
+Save, let the service redeploy, confirm the dashboard is populated, then
+**remove both variables**. They are not inert: the seeder clears the org's
+existing repos, PRs, rules and incidents before re-inserting, so leaving them
+set means every future restart wipes whatever real data has accumulated.
+
+`FORCE_DEMO_SEED` is required under the prod profile — the seeder refuses
+otherwise, because demo rows are hard to distinguish from real ones later.
 
 ---
 

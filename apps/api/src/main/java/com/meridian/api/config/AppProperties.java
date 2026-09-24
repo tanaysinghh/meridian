@@ -33,6 +33,15 @@ public record AppProperties(
         /* Secure flag on the auth cookies. False in dev, true in prod. */
         @DefaultValue("false") boolean cookieSecure,
 
+        /*
+         * SameSite policy for the auth cookies. "Lax" in development, where the Vite proxy makes
+         * the browser see one origin. "None" in production, where the web and api services live on
+         * separate *.onrender.com subdomains — and because onrender.com is on the Public Suffix
+         * List, those are different *sites*, so a Lax cookie is never sent on the SPA's requests.
+         * "None" requires Secure, which the prod profile also sets.
+         */
+        @DefaultValue("Lax") String cookieSameSite,
+
         /* Whether 500 responses carry `message` and `stack`. Dev only. */
         @DefaultValue("false") boolean exposeErrorDetails,
 

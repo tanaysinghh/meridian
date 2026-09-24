@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import TierPill from '../components/TierPill.jsx';
 import { fadeUp, stagger, ease } from '../lib/motion.js';
+import { API_BASE } from '../lib/api.js';
 
 export default function Landing() {
   return (
@@ -97,7 +98,7 @@ function Hero() {
             post-merge feedback, and an SLA that keeps risky code from sitting overnight.
           </motion.p>
           <motion.div variants={fadeUp} className="mt-10 flex items-center gap-3 flex-wrap">
-            <motion.a href="/api/auth/github"
+            <motion.a href={`${API_BASE}/auth/github`}
               whileHover={{ y: -1 }}
               transition={{ duration: 0.2, ease }}
               className="bg-accent text-white px-5 py-3 text-sm font-medium inline-flex items-center gap-2 hover:bg-accent2 transition-colors">

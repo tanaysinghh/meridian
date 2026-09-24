@@ -24,7 +24,7 @@ class JwtServiceTest {
 
     private static AppProperties props(String secret, Duration ttl, String issuer, String audience) {
         return new AppProperties(
-                "http://localhost:5173", "", false, false, false,
+                "http://localhost:5173", "", false, false, "Lax", false,
                 new AppProperties.Jwt(secret, ttl, 30, issuer, audience),
                 4,
                 new AppProperties.Ml("http://localhost:8000", "", 5000),

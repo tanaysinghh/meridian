@@ -36,7 +36,10 @@ import java.util.Optional;
  *   <li>{@code ADMIN_PASSWORD} must be at least 12 characters, in every environment.</li>
  * </ul>
  *
- * <p>The demo dataset the old script could also load is not ported; see DECISIONS.md.
+ * <p>Passing {@code --seed-demo} additionally loads the sample Acme dataset via
+ * {@link DemoDataSeeder}. That refuses to run under the prod profile unless
+ * {@code FORCE_DEMO_SEED=yes} is set, mirroring the old script's guard — demo rows in a real
+ * tenant's database are hard to tell from real ones after the fact.
  */
 @Component
 public class BootstrapSeeder implements ApplicationRunner {
@@ -50,31 +53,58 @@ public class BootstrapSeeder implements ApplicationRunner {
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
     private final Environment env;
+    private final DemoDataSeeder demoDataSeeder;
 
     public BootstrapSeeder(OrgRepository orgs,
                            OrgSettingsRepository orgSettings,
                            UserRepository users,
                            PasswordEncoder passwordEncoder,
-                           Environment env) {
+                           Environment env,
+                           DemoDataSeeder demoDataSeeder) {
         this.orgs = orgs;
         this.orgSettings = orgSettings;
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.env = env;
+        this.demoDataSeeder = demoDataSeeder;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        boolean requested = args.containsOption("seed")
+        boolean wantDemo = args.containsOption("seed-demo")
+                || Boolean.parseBoolean(env.getProperty("MERIDIAN_SEED_DEMO", "false"));
+        boolean requested = wantDemo
+                || args.containsOption("seed")
                 || Boolean.parseBoolean(env.getProperty("MERIDIAN_SEED", "false"));
         if (!requested) {
             return;
         }
-        seed();
+        Org org = seed();
+        if (wantDemo) {
+            seedDemo(org);
+        }
+    }
+
+    /**
+     * Loads the sample dataset into the bootstrapped org.
+     *
+     * @throws IllegalStateException in production unless {@code FORCE_DEMO_SEED=yes}
+     */
+    private void seedDemo(Org org) {
+        boolean prod = Arrays.asList(env.getActiveProfiles()).contains("prod");
+        if (prod && !"yes".equalsIgnoreCase(env.getProperty("FORCE_DEMO_SEED", ""))) {
+            throw new IllegalStateException(
+                    "[seed] refusing to load demo data in production; set FORCE_DEMO_SEED=yes to override");
+        }
+        if (org == null) {
+            throw new IllegalStateException(
+                    "[seed] --seed-demo needs a bootstrapped org; set ADMIN_EMAIL and ADMIN_PASSWORD");
+        }
+        demoDataSeeder.seed(org);
     }
 
     @Transactional
-    public void seed() {
+    public Org seed() {
         boolean prod = Arrays.asList(env.getActiveProfiles()).contains("prod");
 
         String adminEmail = Optional.ofNullable(env.getProperty("ADMIN_EMAIL"))
@@ -88,7 +118,7 @@ public class BootstrapSeeder implements ApplicationRunner {
                         "[seed] ADMIN_EMAIL and ADMIN_PASSWORD are required in production");
             }
             log.warn("[seed] ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping admin bootstrap");
-            return;
+            return null;
         }
         if (adminPassword.length() < MIN_PASSWORD_LENGTH) {
             throw new IllegalStateException(
@@ -128,5 +158,6 @@ public class BootstrapSeeder implements ApplicationRunner {
 
         // The password is never logged, only the fact that it was set.
         log.info("[seed] admin bootstrapped: {} (org: {})", adminEmail, orgSlug);
+        return target;
     }
 }

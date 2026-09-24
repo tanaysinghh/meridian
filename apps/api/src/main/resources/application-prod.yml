@@ -21,6 +21,10 @@ server:
 
 meridian:
   cookie-secure: true
+  # The web and api services are separate *.onrender.com subdomains, and onrender.com is on the
+  # Public Suffix List — so they are different *sites* and a Lax cookie would never be sent on the
+  # SPA's requests. None requires Secure, set above. See DECISIONS.md § Split-origin cookies.
+  cookie-same-site: ${COOKIE_SAME_SITE:None}
   trust-proxy: ${TRUST_PROXY:true}
   expose-error-details: false
   # No fallback — absence is a boot failure, not a default.

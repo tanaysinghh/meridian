@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
+import { API_BASE } from '../lib/api.js';
 import Logo from '../components/Logo.jsx';
 
 export default function Login() {
@@ -27,19 +28,27 @@ export default function Login() {
   const startGitHub = async e => {
     e.preventDefault();
     setGhHint(null);
+    // Must go through API_BASE. A hardcoded '/api' resolves against the web origin,
+    // which in production is a static site whose SPA fallback answers *every* unknown
+    // path with index.html — so the probe below saw 200 text/html, the redirect check
+    // fell through, and the browser navigated back into the app instead of to GitHub.
+    const url = `${API_BASE}/auth/github`;
     try {
-      const res = await fetch('/api/auth/github', { credentials: 'include', redirect: 'manual' });
+      const res = await fetch(url, { credentials: 'include', redirect: 'manual' });
+      // An opaque redirect is the success case for a cross-origin 302.
       if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
-        window.location.href = '/api/auth/github';
+        window.location.href = url;
         return;
       }
       if (res.status === 503) {
         setGhHint('GitHub sign-in isn’t configured on this server yet.');
         return;
       }
-      window.location.href = '/api/auth/github';
+      window.location.href = url;
     } catch {
-      setGhHint('GitHub sign-in is unavailable right now.');
+      // A cross-origin opaque response can also surface as a thrown TypeError
+      // depending on the browser; navigating is still the right move.
+      window.location.href = url;
     }
   };
 

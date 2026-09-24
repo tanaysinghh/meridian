@@ -48,7 +48,7 @@ class AuthServiceTest {
 
     private static AppProperties props() {
         return new AppProperties(
-                "http://localhost:5173", "", false, false, true,
+                "http://localhost:5173", "", false, false, "Lax", true,
                 new AppProperties.Jwt("t".repeat(40), Duration.ofMinutes(15), 30, "meridian", "meridian-web"),
                 4,
                 new AppProperties.Ml("http://localhost:8000", "", 5000),

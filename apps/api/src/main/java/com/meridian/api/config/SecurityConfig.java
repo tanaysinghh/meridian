@@ -164,7 +164,7 @@ public class SecurityConfig {
         repository.setParameterName("_csrf");
         repository.setCookieCustomizer(cookie -> cookie
                 .secure(props.cookieSecure())
-                .sameSite("Lax")
+                .sameSite(props.cookieSameSite())
                 .path("/")
                 .maxAge(java.time.Duration.ofDays(1)));
 
@@ -180,6 +180,9 @@ public class SecurityConfig {
         config.setAllowCredentials(true);
         config.setAllowedMethods(List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-CSRF-Token"));
+        // The SPA cannot read the mrd_csrf cookie when it is on a different site, so the token is
+        // also returned as a response header. It must be explicitly exposed or the browser hides it.
+        config.setExposedHeaders(List.of(CsrfCookieFilter.CSRF_HEADER));
         config.setMaxAge(600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

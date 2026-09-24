@@ -360,6 +360,47 @@ The admin bootstrap is a one-off: `ADMIN_EMAIL` / `ADMIN_PASSWORD` are read
 only when the service is started with `--seed`, so ordinary deploys never
 touch user records.
 
+## Split-origin cookies and the SameSite tradeoff
+
+In production `meridian-web` and `meridian-api` are separate `*.onrender.com`
+subdomains. `onrender.com` is on the Public Suffix List, so the browser treats
+them as different **sites**, not merely different origins. Three consequences,
+all of which broke login outright:
+
+1. A `SameSite=Lax` cookie is never attached to a cross-site request, so the
+   session cookie the OAuth callback set was never sent back — every subsequent
+   call returned 401.
+2. `document.cookie` on the web origin cannot see a cookie set by the API's
+   domain, so the double-submit CSRF read was impossible and every mutation,
+   including `POST /auth/login`, was rejected with 403.
+3. `Login.jsx` and `Landing.jsx` linked to a hardcoded `/api/auth/github`,
+   which on a static site with an SPA fallback returns `index.html` rather than
+   404 — so "Continue with GitHub" quietly navigated back into the app.
+
+The fix keeps the two services split and adapts to it: auth cookies are
+`SameSite=None; Secure` in production, the CSRF token is additionally returned
+in an `X-CSRF-Token` response header (exposed through
+`Access-Control-Expose-Headers`) and cached in memory by `api.js`, and both
+GitHub links go through `API_BASE`.
+
+**The tradeoff:** `SameSite=None` gives up the browser's built-in cross-site
+request protection, so the strict CORS allow-list and the CSRF token become the
+primary defence rather than a second layer behind SameSite. That is the standard
+and accepted arrangement for a split-origin SPA — SameSite=None exists precisely
+for this case, the allow-list is a single exact origin with no wildcards, every
+mutating request must echo a token the attacker's origin cannot read, and
+`Secure` confines the cookie to HTTPS. Development keeps `SameSite=Lax`, because
+the Vite proxy makes the browser see one origin there and the stricter default
+costs nothing.
+
+The alternative considered and rejected was proxying `/api` from the static site
+so production would be same-origin like development. It needs no application
+changes, but Render documents only that a rewrite destination "can be a full
+URL" — nothing about path capture or WebSocket upgrades, and realtime runs over
+a WebSocket at `/live`. Trading a documented browser mechanism for undocumented
+platform behaviour, in the part of the system whose failure mode is silent, was
+not worth it.
+
 ## Deployment pitfalls
 
 Recorded because the first production rollout looked completely healthy while

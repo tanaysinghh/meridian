@@ -25,9 +25,11 @@ import java.time.Duration;
  *   <li>{@code mrd_oauth_state} — short-lived GitHub OAuth state. HttpOnly, 10 minutes.</li>
  * </ul>
  *
- * <p>All are {@code SameSite=Lax} and {@code Secure} only in production, matching
- * {@code secure: config.isProd}. Lax is what makes the double-submit defence work: a cross-origin
- * form post cannot read the CSRF cookie, so it cannot produce a matching header.
+ * <p>{@code Secure} is set only in production. {@code SameSite} follows
+ * {@code meridian.cookie-same-site}: {@code Lax} in development, where the Vite proxy puts the SPA
+ * and the API on one origin, and {@code None} in production, where they are different sites and a
+ * Lax cookie would simply never be sent. With {@code None}, the cross-site protection Lax provided
+ * is replaced by the CORS allow-list plus the CSRF token — see DECISIONS.md.
  */
 @Component
 public class AuthCookies {
@@ -88,7 +90,7 @@ public class AuthCookies {
         return ResponseCookie.from(name, value)
                 .httpOnly(httpOnly)
                 .secure(props.cookieSecure())
-                .sameSite("Lax")
+                .sameSite(props.cookieSameSite())
                 .path("/")
                 .maxAge(maxAge)
                 .build();

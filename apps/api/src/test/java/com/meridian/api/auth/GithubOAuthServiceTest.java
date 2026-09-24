@@ -34,7 +34,7 @@ class GithubOAuthServiceTest {
 
     private static AppProperties props() {
         return new AppProperties(
-                "https://meridian-web-1pi4.onrender.com", "", false, true, false,
+                "https://meridian-web-1pi4.onrender.com", "", false, true, "None", false,
                 new AppProperties.Jwt("t".repeat(40), Duration.ofMinutes(15), 30, "meridian", "meridian-web"),
                 4,
                 new AppProperties.Ml("https://meridian-ml.onrender.com", "s", 5000),
@@ -107,7 +107,7 @@ class GithubOAuthServiceTest {
                 new Case(CLIENT_ID, "secret", ""),
         }) {
             AppProperties p = new AppProperties(
-                    "https://web", "", false, true, false,
+                    "https://web", "", false, true, "None", false,
                     new AppProperties.Jwt("t".repeat(40), Duration.ofMinutes(15), 30, "meridian", "meridian-web"),
                     4,
                     new AppProperties.Ml("https://ml", "s", 5000),

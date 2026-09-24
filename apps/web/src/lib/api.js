@@ -3,14 +3,35 @@
 // https://meridian-api.onrender.com). All requests use credentials:'include',
 // so the API must send CORS with credentials + list this origin in
 // ALLOWED_ORIGINS. Falls back to /api for the dev proxy path.
-const BASE = (import.meta.env?.VITE_API_BASE || '/api').replace(/\/$/, '');
+export const API_BASE = (import.meta.env?.VITE_API_BASE || '/api').replace(/\/$/, '');
 
-// Read the CSRF token cookie the API set on the last GET. We echo it back in
-// X-CSRF-Token on every mutating request — the API rejects mutating requests
-// where the header doesn't match the cookie.
-function csrfToken() {
+// CSRF token handling.
+//
+// The API sets a readable `mrd_csrf` cookie AND returns the same value in an
+// `X-CSRF-Token` response header. Which one we can actually use depends on the
+// deployment:
+//
+//   - Same-origin (local dev, via the Vite proxy): the cookie is readable, and
+//     it survives a page reload, so it is the better source.
+//   - Split-origin (production: meridian-web and meridian-api are different
+//     *.onrender.com subdomains, and onrender.com is on the Public Suffix List,
+//     so they are different *sites*): the cookie belongs to the API's domain and
+//     `document.cookie` here can never see it. The response header is the only
+//     way to read it.
+//
+// So: prefer the cookie, fall back to the header value cached from the last
+// response. The cache is memory-only and repopulates on the first request after
+// a reload, which is always a GET (the app calls /me on mount).
+let cachedCsrfToken = null;
+
+function cookieCsrfToken() {
+  if (typeof document === 'undefined') return null;
   const m = document.cookie.match(/(?:^|;\s*)mrd_csrf=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : null;
+}
+
+function csrfToken() {
+  return cookieCsrfToken() || cachedCsrfToken;
 }
 
 async function req(path, opts = {}) {
@@ -20,12 +41,18 @@ async function req(path, opts = {}) {
     const token = csrfToken();
     if (token) headers['x-csrf-token'] = token;
   }
-  const res = await fetch(BASE + path, {
+  const res = await fetch(API_BASE + path, {
     credentials: 'include',
     headers,
     ...opts,
-    body: opts.body ? JSON.stringify(opts.body) : undefined
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
+
+  // Cache the token the server just handed us, so the next mutation has one even
+  // when the cookie is invisible to this origin.
+  const headerToken = res.headers.get('X-CSRF-Token');
+  if (headerToken) cachedCsrfToken = headerToken;
+
   if (res.status === 401) throw Object.assign(new Error('unauthorized'), { status: 401 });
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json() : await res.text();

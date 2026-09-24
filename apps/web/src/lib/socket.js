@@ -1,4 +1,5 @@
 import { Client } from '@stomp/stompjs';
+import { API_BASE } from './api.js';
 
 // Realtime channel to the API.
 //
@@ -44,8 +45,7 @@ function endpointUrl() {
  * caller's own.
  */
 async function resolveOrgId() {
-  const base = (import.meta.env?.VITE_API_BASE || '/api').replace(/\/$/, '');
-  const res = await fetch(`${base}/me`, { credentials: 'include' });
+  const res = await fetch(`${API_BASE}/me`, { credentials: 'include' });
   if (!res.ok) throw new Error('not_authenticated');
   const body = await res.json();
   return body?.user?.org_id;

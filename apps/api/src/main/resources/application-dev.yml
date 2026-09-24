@@ -18,6 +18,10 @@ spring:
 meridian:
   # Cookies are only marked Secure in prod, matching `secure: config.isProd`.
   cookie-secure: false
+  # Vite proxies /api and /live, so the browser sees a single origin — Lax applies cleanly and
+  # keeps the stronger default for local work. SameSite=None would also require Secure, which
+  # plain-HTTP localhost cannot set.
+  cookie-same-site: Lax
   # Dev-only stand-in so `npm run dev`-style startup works with no .env at all.
   # StartupChecks logs this loudly and refuses to let it reach production.
   jwt:

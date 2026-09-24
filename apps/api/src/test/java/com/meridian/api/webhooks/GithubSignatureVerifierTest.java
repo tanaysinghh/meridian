@@ -26,7 +26,7 @@ class GithubSignatureVerifierTest {
 
     private static AppProperties props(String webhookSecret, boolean allowUnsigned) {
         return new AppProperties(
-                "http://localhost:5173", "", false, false, false,
+                "http://localhost:5173", "", false, false, "Lax", false,
                 new AppProperties.Jwt("x".repeat(40), Duration.ofMinutes(15), 30, "meridian", "meridian-web"),
                 4,
                 new AppProperties.Ml("http://localhost:8000", "", 5000),
