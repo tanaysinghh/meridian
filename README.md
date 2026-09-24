@@ -127,14 +127,29 @@ Meridian ships with a **Render Blueprint** at [`render.yaml`](render.yaml)
 that provisions all four resources (Postgres + api + ml + web) in a single
 apply. Step-by-step walkthrough in [`RENDER_DEPLOY.md`](RENDER_DEPLOY.md).
 
-**Current deployment status: paused.** The Blueprint validates and the
-individual services build cleanly, but rollout is on hold pending a plan
-decision — Render's free tier only permits one Postgres database per
-account, and this account already has one attached to another project.
-Resolving is straightforward (either upgrade the DB to a paid plan, drop
-the existing free DB, or apply the Blueprint from a separate Render
-workspace) — see `RENDER_DEPLOY.md § 5` for the options. Nothing in the
-codebase needs to change.
+**Current deployment status: live.**
+
+| service | URL |
+|---------|-----|
+| `meridian-web` | https://meridian-web-1pi4.onrender.com |
+| `meridian-api` | https://meridian-api-il0f.onrender.com |
+| `meridian-ml`  | https://meridian-ml.onrender.com |
+| `meridian-db`  | Render managed Postgres 15 (private) |
+
+All four run on Render's free tier, which **spins services down after
+inactivity** — the first request after an idle period can take 50–110
+seconds while the container wakes. That is the plan, not a fault. Upgrade
+`meridian-api` to Starter to remove it.
+
+> **If you re-apply the Blueprint, fill in every `sync: false` variable.**
+> Those are prompts, not defaults: Render creates the service without them
+> and the app silently falls back to its local-development values. On the
+> first rollout `WEB_ORIGIN`, `ALLOWED_ORIGINS`, `VITE_API_BASE`,
+> `ML_SERVICE_URL` and the `GITHUB_*` credentials were all left unset, which
+> left every service reporting "Deployed" while the product did not work at
+> all: the frontend called a `/api` path that does not exist, CORS rejected
+> the real web origin, and every PR was scored by the fallback heuristic
+> instead of the model. See `DECISIONS.md § Deployment pitfalls`.
 
 External hosts other than Render work fine — the API and ML services are
 a plain Docker image / Python app and don't depend on Render primitives.
@@ -143,14 +158,18 @@ a plain Docker image / Python app and don't depend on Render primitives.
 
 The pieces that are stubbed out or deferred, in rough priority order:
 
-- **GitHub App not yet registered.** OAuth login and webhook ingestion
-  need a real GitHub App. Until one is created and its credentials
-  (`GITHUB_CLIENT_*`, `GITHUB_APP_ID`, `GITHUB_WEBHOOK_SECRET`,
-  `GITHUB_OAUTH_CALLBACK`) are set, the "Continue with GitHub" button
-  returns a clean 503 and no PRs get ingested. Email + password auth
-  and manual fixture replay both work without it. Runbook:
+- **GitHub App is registered and OAuth login works.** The app
+  (`meridian-tanaysinghh`, App ID 5059654) is live against the production
+  URLs, with three permissions — Repository Metadata and Pull requests
+  read-only, Account Email addresses read-only — and two webhook events,
+  Pull request and Pull request review. Runbook:
   `MANUAL_SETUP.md § GitHub App / webhooks`.
-- **Render deployment gated on DB plan.** See "Deployment" above.
+- **The app is not yet installed on a repository**, so no live PRs are
+  being ingested. Registering the app and installing it are separate
+  steps: until it is installed somewhere, GitHub has nothing to send
+  webhooks about. Installing requires generating a private key, which the
+  codebase itself never uses — it authenticates webhooks by HMAC and OAuth
+  by user-to-server token.
 - **Slack and email digest are wired but not configured.** Set
   `SLACK_WEBHOOK_URL` and/or `EMAIL_PROVIDER=resend` +
   `RESEND_API_KEY` + `EMAIL_FROM` on the api service to turn them on.
@@ -163,6 +182,16 @@ The pieces that are stubbed out or deferred, in rough priority order:
 - **ML model trained on synthetic labels.** Once real `pr_outcomes` data
   accumulates (the nightly post-merge job populates it), retrain on
   actual reverts/hotfixes rather than the seed distribution.
+- **Real webhooks won't populate the scoring inputs.** Ingestion reads
+  `file_paths`, `commits_details` and `diff_text` off the pull request
+  payload, and none of those are real GitHub webhook fields — they were
+  invented for the fixture replay. Against a live GitHub App you get the
+  addition/deletion/file counts but an empty file list, so the path-based
+  rules, the `touches_*` features, the built-in sensitive-path escalation
+  and the secret scanner all sit inert. Pre-existing (the Node service read
+  the same non-existent fields); closing it means an extra
+  `GET /repos/{owner}/{repo}/pulls/{n}/files` during ingestion, which needs
+  no permission beyond the Pull requests read already granted.
 - **Demo dataset seeding not ported.** The old `npm run db:seed:demo`
   loaded a sample org with PRs, rules and hotness data. The admin
   bootstrap it also did *was* ported (`--seed`); the demo fixtures were

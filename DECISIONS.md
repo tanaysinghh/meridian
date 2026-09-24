@@ -360,6 +360,44 @@ The admin bootstrap is a one-off: `ADMIN_EMAIL` / `ADMIN_PASSWORD` are read
 only when the service is started with `--seed`, so ordinary deploys never
 touch user records.
 
+## Deployment pitfalls
+
+Recorded because the first production rollout looked completely healthy while
+the product did not work at all.
+
+**`sync: false` is a prompt, not a default.** Render creates the service
+whether or not you answer it. On the first apply, `WEB_ORIGIN`,
+`ALLOWED_ORIGINS`, `VITE_API_BASE`, `ML_SERVICE_URL` and every `GITHUB_*`
+credential were left unset. Each one then fell through to the value meant for
+local development, and the result was four independent breaks behind four green
+"Deployed" badges:
+
+| Unset variable | Fallback | Effect in production |
+|----------------|----------|----------------------|
+| `VITE_API_BASE` | `/api` | Vite bakes this in at **build** time. The deployed bundle called a path that does not exist on a static site — every API call 404'd. Fixing it needs a rebuild, not a restart. |
+| `WEB_ORIGIN` / `ALLOWED_ORIGINS` | `http://localhost:5173` | CORS rejected the real web origin with 403, so the browser could not reach the API even once the bundle was corrected. |
+| `ML_SERVICE_URL` | `http://localhost:8000` | Unreachable from inside the container, so `MlClient` silently degraded to the heuristic on every score. The ML service was running and healthy the whole time. |
+| `GITHUB_*` | empty | `/auth/github` returned its "not configured" 503. |
+
+**Health checks did not catch any of it.** `/health/ready` verifies the process
+and the database, which is the right scope for a readiness probe — it is not an
+end-to-end test. Nothing in the platform's view of the system distinguishes
+"running" from "working."
+
+The lesson worth keeping: after any rollout, verify the product, not the
+dashboard. Fetch the deployed bundle and confirm it contains the API origin;
+send a CORS preflight from the real web origin and confirm it is allowed; and
+check that a freshly scored PR reports a real `model_version` rather than
+`fallback-heuristic-0.1`. All three are cheap and each one catches a failure
+that "Deployed" hides.
+
+**The ML fallback is deliberately quiet, which cuts both ways.** Degrading to
+the heuristic when the model is unreachable is correct — ingestion must not
+stall on ML being down. But it means a permanently misconfigured
+`ML_SERVICE_URL` looks exactly like a healthy system, forever. The
+`model_version` column on every score row is what makes it detectable after the
+fact.
+
 ## Database provenance
 
 **Render's managed Postgres (`meridian-db`, PostgreSQL 15) is the authoritative
