@@ -47,18 +47,33 @@ see `DECISIONS.md § Migration to Spring Boot`.
 
 1. Create a GitHub App at https://github.com/settings/apps/new.
 2. Webhook URL: `https://<your-api-host>/webhooks/github`.
-3. Subscribe to: **Pull request**, **Pull request review**, **Pull request
-   review comment**, **Push**, **Check suite**.
-4. Generate a private key and set a webhook secret.
-5. Populate on the API service:
+3. Callback URL: `https://<your-api-host>/auth/github/callback` — must match
+   `GITHUB_OAUTH_CALLBACK` exactly.
+4. Subscribe to exactly two events: **Pull request** and **Pull request
+   review**. `GithubWebhookController` handles only these; every other event
+   is acknowledged and dropped.
+5. Permissions — the minimum the code uses, and no more:
+   - Repository → **Metadata**: Read-only (mandatory, auto-selected)
+   - Repository → **Pull requests**: Read-only
+   - Account → **Email addresses**: Read-only
+
+   Note the last one. `GithubOAuthService` requests the classic OAuth scopes
+   `read:user user:email` on the authorize URL, but **GitHub Apps ignore the
+   `scope` parameter** and use their configured permissions instead. Access to
+   `/user/emails` therefore depends entirely on this permission; without it,
+   sign-in fails with `github_no_verified_email`.
+6. Set a webhook secret, then populate on the API service:
    ```
    GITHUB_APP_ID=...
-   GITHUB_APP_PRIVATE_KEY_PATH=./secrets/github-app.pem
    GITHUB_WEBHOOK_SECRET=...          # REQUIRED in prod
    GITHUB_CLIENT_ID=...               # for OAuth login
    GITHUB_CLIENT_SECRET=...
    GITHUB_OAUTH_CALLBACK=https://<your-api-host>/auth/github/callback
    ```
+   A GitHub App private key is only needed for server-to-server (installation
+   token) calls, which this service does not make — it uses the webhook
+   signature for ingestion and a user-to-server token for OAuth. There is no
+   `GITHUB_APP_PRIVATE_KEY_PATH` setting.
 
 Webhook signatures are enforced in production — deliveries missing or
 failing HMAC verification return 401 and are not persisted.

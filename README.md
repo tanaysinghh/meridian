@@ -20,13 +20,17 @@ surfaces the ones most likely to cause a revert, hotfix, or incident.
 
 | service      | stack                                        | port  |
 |--------------|----------------------------------------------|-------|
-| `apps/api`   | Java 21 · Spring Boot 4 · Postgres 16         | 4000  |
+| `apps/api`   | Java 21 · Spring Boot 4 · Postgres            | 4000  |
 | `apps/web`   | React 18 · Vite · Tailwind                    | 5173  |
 | `apps/ml`    | FastAPI · LightGBM · scikit                   | 8000  |
 
 `apps/api` in detail: Spring MVC for the REST layer, Spring Data JPA +
 Hibernate over Postgres, Flyway for schema migrations, and Spring Security
 for auth and the security headers. Built and deployed as a Docker image.
+
+The database connection is provider-agnostic — production runs on Render's
+managed Postgres 15, local development on the Postgres 16 container in
+`docker-compose.yml`. See `DECISIONS.md § Database provenance`.
 
 - Auth: email + password (bcrypt cost 12) with JWT in httpOnly cookies,
   plus GitHub OAuth. CSRF via double-submit tokens.

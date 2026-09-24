@@ -29,7 +29,9 @@ databases:
     databaseName: meridian
     user: meridian
     plan: free                # bump to `starter` or higher for prod
-    postgresMajorVersion: 16
+    # Matches the running instance. Changing this does not upgrade a database
+    # that already exists — Render only applies it at creation.
+    postgresMajorVersion: 15
     ipAllowList: []           # Render's internal network only
 
 services:

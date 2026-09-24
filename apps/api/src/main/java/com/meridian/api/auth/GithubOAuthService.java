@@ -72,6 +72,15 @@ public class GithubOAuthService {
         return HexFormat.of().formatHex(bytes);
     }
 
+    /**
+     * Builds the URL the browser is redirected to in order to start the OAuth flow.
+     *
+     * <p>The {@code encode()} step is load-bearing. {@link #SCOPES} separates the two scopes with a
+     * space, which is not legal in a URI query — and {@code AuthController} passes this string to
+     * {@code URI.create}, which throws on it. Without encoding, every call to
+     * {@code GET /auth/github} returned a 500 once the app was actually configured. The Node
+     * implementation got this for free because {@code URLSearchParams} encodes on write.
+     */
     public String authorizeUrl(String state) {
         return UriComponentsBuilder.fromUriString(AUTHORIZE_URL)
                 .queryParam("client_id", props.github().clientId())
@@ -79,6 +88,7 @@ public class GithubOAuthService {
                 .queryParam("scope", SCOPES)
                 .queryParam("state", state)
                 .build()
+                .encode()
                 .toUriString();
     }
 

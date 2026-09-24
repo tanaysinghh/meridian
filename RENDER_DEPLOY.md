@@ -9,7 +9,7 @@ Step-by-step walkthrough for a first-time Render deploy of Meridian.
 > [§ 5](#5--what-to-watch-on-free-tier) for the three ways to resolve.
 
 Meridian ships four things:
-- **meridian-db**  — managed Postgres 16 (private).
+- **meridian-db**  — managed Postgres 15 (private).
 - **meridian-ml**  — FastAPI risk scorer (public web service, gated by a
   shared-secret `X-Internal-Secret` header — Render free tier does not
   support private services, so we authenticate at the app layer instead).
@@ -137,8 +137,19 @@ see `DECISIONS.md § Migration to Spring Boot`.
 In your GitHub App:
 - **Webhook URL**: `https://meridian-api.onrender.com/webhooks/github`
 - **Webhook secret**: the value of `GITHUB_WEBHOOK_SECRET` from the api env.
-- Subscribe to `pull_request`, `pull_request_review`, `push` events at
-  minimum.
+- Subscribe to exactly two events: **Pull request** and **Pull request
+  review**. `GithubWebhookController` handles only these; anything else is
+  acknowledged and dropped, so subscribing more just adds ignored traffic.
+- **Permissions** — the minimum the code actually uses:
+  - Repository → **Metadata**: Read-only (mandatory, auto-selected)
+  - Repository → **Pull requests**: Read-only (the only repo data read, and
+    what gates the two events above)
+  - Account → **Email addresses**: Read-only (OAuth login calls
+    `/user/emails`; without this, sign-in fails with
+    `github_no_verified_email`)
+
+  Contents, Checks, Issues and Actions are deliberately *not* requested —
+  nothing in the codebase reads them.
 
 Install the app on a test repo. Open a PR — the dashboard should light up
 within a few seconds (realtime push) with a scored PR row.

@@ -328,7 +328,8 @@ than getting them transitively.
 
 The Blueprint (`render.yaml`) provisions four resources in one apply:
 
-- **`meridian-db`** — managed Postgres 16.
+- **`meridian-db`** — managed Postgres 15. Authoritative in production;
+  see "Database provenance" below.
 - **`meridian-ml`** — public web service, gated by a shared-secret
   `X-Internal-Secret` header. Render's free tier doesn't offer private
   services (`type: pserv` needs a paid plan), so the scorer runs as a
@@ -358,6 +359,31 @@ dashboard prompts for each on first Blueprint apply.
 The admin bootstrap is a one-off: `ADMIN_EMAIL` / `ADMIN_PASSWORD` are read
 only when the service is started with `--seed`, so ordinary deploys never
 touch user records.
+
+## Database provenance
+
+**Render's managed Postgres (`meridian-db`, PostgreSQL 15) is the authoritative
+production database.** Nothing else holds production data.
+
+The connection code is deliberately provider-agnostic. `config/DatabaseUrl`
+accepts `DATABASE_URL` in either the libpq URI form
+(`postgres://user:pass@host:port/db`) that Render and docker-compose emit, or a
+`jdbc:postgresql://…` URL, and normalises the former before the DataSource is
+built. `DATABASE_SSL=true` appends `sslmode=require`. There is no
+provider-specific code anywhere — pointing this service at Neon, Supabase, RDS
+or a local container is a matter of changing one environment variable, and
+Flyway will migrate whatever it finds.
+
+Two version notes, both intentional:
+
+- Production runs **Postgres 15**; `docker-compose.yml` runs **16** for local
+  development. The schema uses nothing version-specific, so the split is
+  harmless. It is left alone rather than aligned because changing the local
+  image's major version forces Postgres to reject the existing data directory,
+  which would destroy local demo data for no benefit.
+- `render.yaml` records `postgresMajorVersion: 15` to match the running
+  instance. Render only reads that field when *creating* a database, so editing
+  it never upgrades one that already exists.
 
 ## Visual design — palette anchored on #035BD6
 
